@@ -148,6 +148,7 @@ Current HTTP traffic is not encrypted. The prototype is safe only for a trusted 
 | `POST` | `/api/v1/pairing/sessions` | Loopback only; create a two-minute code |
 | `POST` | `/api/v1/pair` | LAN; exchange a code for device ID/token |
 | `DELETE` | `/api/v1/device` | Authenticated phone revokes itself |
+| `PUT` | `/api/v1/device/status` | Authenticated foreground phone reports validated platform and storage telemetry |
 | `GET` | `/api/v1/destinations` | Authenticated phone lists approved destinations and current availability |
 | `POST` | `/api/v1/upload` | Authenticated whole-file streaming upload |
 | `GET` | `/api/v1/uploads` | Authenticated history for the calling device |

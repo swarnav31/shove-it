@@ -20,6 +20,12 @@ export type StorageDestination = {
   fileSystem: string | null;
 };
 
+export type DeviceStatus = {
+  platform: string;
+  availableBytes: number;
+  totalBytes: number;
+};
+
 const REQUEST_TIMEOUT_MS = 5_000;
 
 export class ServerRequestError extends Error {
@@ -97,6 +103,26 @@ export class ServerClient {
     }
 
     return (await response.json()) as StorageDestination[];
+  }
+
+  async updateDeviceStatus(rawBaseUrl: string, token: string, status: DeviceStatus): Promise<void> {
+    const baseUrl = normalizeBaseUrl(rawBaseUrl);
+    const response = await fetchWithTimeout(`${baseUrl}/api/v1/device/status`, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(status),
+    });
+
+    if (!response.ok) {
+      throw new ServerRequestError(
+        response.status === 401 ? 'This pairing is no longer valid.' : `Device status failed (HTTP ${response.status}).`,
+        response.status,
+      );
+    }
   }
 }
 

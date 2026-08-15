@@ -4,6 +4,10 @@
 
 > **Current status: working source preview, not yet a self-contained installer.** The new setup window removes terminal interaction, but the laptop must currently have Java 21, Maven, Node.js 20.19+, and pnpm 10 installed. Docker and WSL are not required.
 
+![Shove Windows control panel showing iPhone and Android Expo onboarding](docs/images/shove-control-panel.png)
+
+*The local Windows control panel: connect through Expo Go, pair once, and send originals to the PC or an attached drive.*
+
 The shortest working path is:
 
 1. Put this repository in a normal Windows folder.
@@ -280,6 +284,7 @@ Routes are provisional and versioned under `/api/v1`.
 | `GET` | `/api/v1/devices` | List paired devices; laptop loopback only |
 | `DELETE` | `/api/v1/devices/{id}` | Revoke a paired device; laptop loopback only |
 | `DELETE` | `/api/v1/device` | Authenticated device revokes its own token |
+| `PUT` | `/api/v1/device/status` | Authenticated foreground device reports validated platform and storage telemetry |
 | `GET` | `/api/v1/destinations` | List approved storage choices and live availability |
 | `GET` | `/api/v1/admin/uploads` | List the complete upload audit; laptop loopback only |
 | `GET` | `/api/v1/admin/overview` | Control-panel connectivity and live destination status; laptop loopback only |

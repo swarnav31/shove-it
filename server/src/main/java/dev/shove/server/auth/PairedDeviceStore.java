@@ -27,6 +27,10 @@ public class PairedDeviceStore {
                 """);
         ensureColumn("last_seen_at", "TEXT");
         ensureColumn("revoked_at", "TEXT");
+        ensureColumn("platform", "TEXT");
+        ensureColumn("storage_available_bytes", "INTEGER");
+        ensureColumn("storage_total_bytes", "INTEGER");
+        ensureColumn("storage_reported_at", "TEXT");
     }
 
     public void add(String id, String displayName, String tokenHash, Instant pairedAt) {
@@ -56,15 +60,48 @@ public class PairedDeviceStore {
                 seenAt.minus(Duration.ofMinutes(1)).toString());
     }
 
+    public boolean updateStatus(
+            String deviceId,
+            String platform,
+            long storageAvailableBytes,
+            long storageTotalBytes,
+            Instant reportedAt) {
+        return jdbc.update(
+                """
+                UPDATE paired_devices
+                SET platform = ?,
+                    storage_available_bytes = ?,
+                    storage_total_bytes = ?,
+                    storage_reported_at = ?,
+                    last_seen_at = ?
+                WHERE id = ? AND revoked_at IS NULL
+                """,
+                platform,
+                storageAvailableBytes,
+                storageTotalBytes,
+                reportedAt.toString(),
+                reportedAt.toString(),
+                deviceId) == 1;
+    }
+
     public List<PairedDeviceRecord> list() {
         return jdbc.query(
-                "SELECT id, display_name, paired_at, last_seen_at, revoked_at FROM paired_devices ORDER BY paired_at DESC",
+                """
+                SELECT id, display_name, paired_at, last_seen_at, revoked_at,
+                       platform, storage_available_bytes, storage_total_bytes, storage_reported_at
+                FROM paired_devices
+                ORDER BY paired_at DESC
+                """,
                 (resultSet, rowNumber) -> new PairedDeviceRecord(
                         resultSet.getString("id"),
                         resultSet.getString("display_name"),
                         Instant.parse(resultSet.getString("paired_at")),
                         nullableInstant(resultSet.getString("last_seen_at")),
-                        nullableInstant(resultSet.getString("revoked_at"))));
+                        nullableInstant(resultSet.getString("revoked_at")),
+                        resultSet.getString("platform"),
+                        nullableLong(resultSet.getObject("storage_available_bytes")),
+                        nullableLong(resultSet.getObject("storage_total_bytes")),
+                        nullableInstant(resultSet.getString("storage_reported_at"))));
     }
 
     public boolean revoke(String deviceId, Instant revokedAt) {
@@ -87,11 +124,19 @@ public class PairedDeviceStore {
         return value == null ? null : Instant.parse(value);
     }
 
+    private static Long nullableLong(Object value) {
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
     public record PairedDeviceRecord(
             String deviceId,
             String displayName,
             Instant pairedAt,
             Instant lastSeenAt,
-            Instant revokedAt) {
+            Instant revokedAt,
+            String platform,
+            Long storageAvailableBytes,
+            Long storageTotalBytes,
+            Instant storageReportedAt) {
     }
 }

@@ -3,6 +3,8 @@ const state = {
   pairingTimer: null,
 };
 
+const DEVICE_ONLINE_WINDOW_MS = 25_000;
+
 const elements = {
   overallStatus: document.querySelector('#overall-status'),
   heroTitle: document.querySelector('#hero-title'),
@@ -126,12 +128,31 @@ function renderDevices(devices) {
     const record = element('div', 'record');
     const main = element('div', 'record-main');
     main.append(textElement('span', 'record-title', device.displayName));
-    const activity = device.lastSeenAt ? `Last connected ${relativeTime(device.lastSeenAt)}` : `Paired ${relativeTime(device.pairedAt)}`;
+    const storageReportedAt = Date.parse(device.storageReportedAt || '');
+    const statusIsFresh = !device.revokedAt
+      && Number.isFinite(storageReportedAt)
+      && Date.now() - storageReportedAt <= DEVICE_ONLINE_WINDOW_MS;
+    const platform = platformLabel(device.platform);
+    const activity = statusIsFresh
+      ? `${platform} · Shove is open now`
+      : device.lastSeenAt
+        ? `${platform} · Last connected ${relativeTime(device.lastSeenAt)}`
+        : `${platform} · Paired ${relativeTime(device.pairedAt)}`;
     main.append(textElement('span', 'record-meta', activity));
+    if (validStorage(device.storageAvailableBytes, device.storageTotalBytes)) {
+      main.append(textElement(
+        'span',
+        'device-storage',
+        `${formatBytes(device.storageAvailableBytes)} free of ${formatBytes(device.storageTotalBytes)} · updated ${relativeTime(device.storageReportedAt)}`,
+      ));
+    } else if (!device.revokedAt) {
+      main.append(textElement('span', 'device-storage unavailable', 'Storage appears while Shove is open on this phone.'));
+    }
     const side = element('div', 'record-side');
     if (device.revokedAt) {
       side.append(textElement('span', 'revoked', 'Unpaired'));
     } else {
+      side.append(textElement('span', statusIsFresh ? 'device-state online' : 'device-state idle', statusIsFresh ? 'Connected' : 'Idle'));
       const button = textElement('button', 'button danger', 'Unpair');
       button.type = 'button';
       button.addEventListener('click', () => revokeDevice(device, button));
@@ -228,6 +249,18 @@ function textElement(tag, className, text) {
   return node;
 }
 function emptyMessage(text) { return textElement('div', 'empty-state', text); }
+function validStorage(available, total) {
+  return Number.isFinite(Number(available))
+    && Number.isFinite(Number(total))
+    && Number(total) > 0
+    && Number(available) >= 0
+    && Number(available) < Number(total);
+}
+function platformLabel(value) {
+  if (value === 'ios') return 'iPhone';
+  if (value === 'android') return 'Android';
+  return 'Phone';
+}
 function formatBytes(value) {
   if (value == null || Number.isNaN(Number(value))) return 'Space unknown';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

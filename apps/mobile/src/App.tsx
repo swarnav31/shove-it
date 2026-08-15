@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -11,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 
@@ -22,6 +23,7 @@ import { createTransferEngine } from './transfers/TransferEngineProvider';
 const TOKEN_KEY = 'shove.deviceToken';
 const SERVER_KEY = 'shove.serverUrl';
 const DESTINATION_POLL_MS = 2_000;
+const DEVICE_STATUS_INTERVAL_MS = 10_000;
 const DEFAULT_SERVER_URL = process.env.EXPO_PUBLIC_SHOVE_SERVER_URL?.trim() || 'http://192.168.1.8:8787';
 
 type ConnectionState =
@@ -51,7 +53,7 @@ export default function App() {
   const [transfer, setTransfer] = useState<TransferTaskSnapshot | null>(null);
   const [transferDestination, setTransferDestination] = useState<StorageDestination | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
-  const [phoneStorage, setPhoneStorage] = useState<PhoneStorage | null>(() => readPhoneStorage());
+  const [phoneStorage, setPhoneStorage] = useState<PhoneStorage | null>(null);
 
   useEffect(() => {
     void Promise.all([SecureStore.getItemAsync(TOKEN_KEY), SecureStore.getItemAsync(SERVER_KEY)]).then(
@@ -65,11 +67,43 @@ export default function App() {
   }, [transferEngine]);
 
   useEffect(() => {
+    let active = true;
+    let requestInFlight = false;
+
+    async function refreshPhoneStorage() {
+      if (requestInFlight || AppState.currentState === 'background' || AppState.currentState === 'inactive') return;
+      requestInFlight = true;
+      try {
+        const storage = await readPhoneStorage();
+        if (!active) return;
+        setPhoneStorage(storage);
+        if (token && storage) {
+          await serverClient.updateDeviceStatus(address, token, {
+            platform: Platform.OS,
+            availableBytes: storage.availableBytes,
+            totalBytes: storage.totalBytes,
+          });
+        }
+      } catch {
+        // Device telemetry is best-effort UI data, never a transfer prerequisite.
+      } finally {
+        requestInFlight = false;
+      }
+    }
+
+    void refreshPhoneStorage();
+    const interval = token
+      ? setInterval(() => void refreshPhoneStorage(), DEVICE_STATUS_INTERVAL_MS)
+      : null;
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') setPhoneStorage(readPhoneStorage());
+      if (state === 'active') void refreshPhoneStorage();
     });
-    return () => subscription.remove();
-  }, []);
+    return () => {
+      active = false;
+      if (interval) clearInterval(interval);
+      subscription.remove();
+    };
+  }, [address, serverClient, token]);
 
   useEffect(() => {
     if (!token) {
@@ -245,7 +279,7 @@ export default function App() {
           <View>
             <Text style={styles.phoneStorageLabel}>THIS PHONE</Text>
             <Text style={styles.phoneStorageValue}>
-              {phoneStorage ? `${formatBytes(phoneStorage.availableBytes)} free` : 'Storage unavailable'}
+              {phoneStorage ? `${formatBytes(phoneStorage.availableBytes)} free` : 'Storage estimate unavailable'}
             </Text>
           </View>
           {phoneStorage && (
@@ -414,11 +448,20 @@ function formatBytes(value: number): string {
   return `${(value / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
 }
 
-function readPhoneStorage(): PhoneStorage | null {
+async function readPhoneStorage(): Promise<PhoneStorage | null> {
   try {
-    const totalBytes = Paths.totalDiskSpace;
-    const availableBytes = Paths.availableDiskSpace;
-    return totalBytes > 0 && availableBytes >= 0 ? { availableBytes, totalBytes } : null;
+    // Expo SDK 54's new iOS totalDiskSpace getter returns free space. The legacy
+    // async calls use volumeTotalCapacity and available-capacity APIs correctly.
+    const [availableBytes, totalBytes] = await Promise.all([
+      FileSystem.getFreeDiskStorageAsync(),
+      FileSystem.getTotalDiskCapacityAsync(),
+    ]);
+    const valid = Number.isFinite(totalBytes)
+      && Number.isFinite(availableBytes)
+      && totalBytes > 0
+      && availableBytes >= 0
+      && availableBytes < totalBytes;
+    return valid ? { availableBytes, totalBytes } : null;
   } catch {
     return null;
   }
