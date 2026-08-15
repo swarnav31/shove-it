@@ -4,7 +4,7 @@
 
 ## Objective
 
-Shove moves a user-selected original from an iPhone to user-controlled Windows storage over the local network and reports success only after Java has persisted and verified the file.
+Shove moves a user-selected original from a phone to user-controlled Windows storage over the local network and reports success only after Java has persisted and verified the file. The current path is verified on iPhone and remains open for Android testing.
 
 The current vertical slice optimizes for learning about the transfer pipeline, not for distribution or visual completeness.
 
@@ -13,7 +13,7 @@ The current vertical slice optimizes for learning about the transfer pipeline, n
 ```mermaid
 flowchart LR
     U["Person"]
-    I["iPhone 13 mini<br/>Expo Go + React Native UI"]
+    I["Phone<br/>Expo Go + React Native UI<br/>(verified on iPhone)"]
     M["Metro development server<br/>Node.js :8081"]
     J["Shove server<br/>Java 21 + Spring Boot :8787"]
     DB[("SQLite<br/>shove.db")]
@@ -29,7 +29,7 @@ flowchart LR
     W -->|"read-only inspection"| DB
 ```
 
-There is no Shove cloud service in this path. Metro is required only because the prototype runs through Expo Go; a distributed iPhone application will not need port `8081`.
+There is no Shove cloud service in this path. Metro is required only because the prototype runs through Expo Go; distributed mobile applications will not need port `8081`.
 
 ## Components
 
@@ -41,7 +41,7 @@ Implemented responsibilities:
 
 - enter and verify the laptop URL;
 - claim a short-lived pairing code;
-- store the bearer token in iOS SecureStore;
+- store the bearer token in platform secure storage through Expo SecureStore;
 - retrieve the server-approved storage destinations and refresh their availability every two seconds while the app is active;
 - choose a destination by opaque ID without sending a Windows path;
 - select an image or video through the system picker;
@@ -118,7 +118,7 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph LAN["Trusted home LAN"]
-        PHONE["Paired iPhone"]
+        PHONE["Paired phone"]
         API["LAN API :8787"]
         PHONE -->|"HTTP bearer token"| API
     end
@@ -148,6 +148,7 @@ Current HTTP traffic is not encrypted. The prototype is safe only for a trusted 
 | `POST` | `/api/v1/pairing/sessions` | Loopback only; create a two-minute code |
 | `POST` | `/api/v1/pair` | LAN; exchange a code for device ID/token |
 | `DELETE` | `/api/v1/device` | Authenticated phone revokes itself |
+| `PUT` | `/api/v1/device/status` | Authenticated foreground phone reports validated platform and storage telemetry |
 | `GET` | `/api/v1/destinations` | Authenticated phone lists approved destinations and current availability |
 | `POST` | `/api/v1/upload` | Authenticated whole-file streaming upload |
 | `GET` | `/api/v1/uploads` | Authenticated history for the calling device |
@@ -192,7 +193,7 @@ Current development deployment:
 - Non-secret developer configuration and runtime records live under ignored `.shove-dev`.
 - Java runs from the packaged Spring Boot JAR; Metro remains development-only.
 - The repository and default media directory are on the Windows filesystem, not inside WSL.
-- The iPhone and laptop use the same Wi-Fi subnet.
+- The phone and laptop use the same Wi-Fi subnet.
 - Windows firewall rules permit only Java `8787` and development Node `8081` from the home subnet.
 
 Customer packaging is deferred. The local admin surface is implemented; the package must now include private Java and Node/Metro runtimes, check/repair its own small manifest, manage startup and narrow firewall access, and leave system developer tools untouched. Maven and pnpm remain build-only.

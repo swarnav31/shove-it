@@ -24,7 +24,7 @@
         <div>
           <p class="eyebrow">YOUR PRIVATE PHOTO PIPE</p>
           <h1 id="hero-title">Getting Shove ready…</h1>
-          <p id="hero-copy" class="hero-copy">Checking your iPhone connection and storage.</p>
+          <p id="hero-copy" class="hero-copy">Checking your phone connection and storage.</p>
         </div>
         <div class="hero-signal" aria-hidden="true">
           <span></span><span></span><span></span>
@@ -33,11 +33,25 @@
 
       <div id="error-banner" class="error-banner" role="alert" hidden></div>
 
-      <section class="steps" aria-label="Connect an iPhone">
+      <section class="card platform-card" aria-labelledby="platform-title">
+        <img src="/admin/phone-platforms.png" alt="Two phones sending photos to a Windows laptop and external drive" loading="lazy">
+        <div class="platform-copy">
+          <p class="kicker">ONE APP, TWO PHONE PLATFORMS</p>
+          <h2 id="platform-title">Bring your iPhone or Android phone.</h2>
+          <p class="muted">Shove uses the same Expo client on both. The complete flow is verified on iPhone; the Android build is ready for its first physical-device test.</p>
+          <div class="platform-links">
+            <a class="button platform-link" href="https://expo.dev/go?device=true&amp;platform=ios&amp;sdkVersion=54" target="_blank" rel="noopener noreferrer">iPhone · Get Expo Go</a>
+            <a class="button platform-link" href="https://expo.dev/go?device=true&amp;platform=android&amp;sdkVersion=54" target="_blank" rel="noopener noreferrer">Android · Get Expo Go</a>
+          </div>
+          <div class="platform-verification"><span>Verified on iPhone</span><span class="pending">Android device test next</span></div>
+        </div>
+      </section>
+
+      <section class="steps" aria-label="Connect a phone">
         <article class="card connect-card">
           <div class="card-heading">
             <span class="step-number">1</span>
-            <div><p class="kicker">OPEN ON IPHONE</p><h2>Scan with Expo Go</h2></div>
+            <div><p class="kicker">OPEN ON YOUR PHONE</p><h2>Scan with Expo Go</h2></div>
           </div>
           <div class="connect-layout">
             <div id="qr-wrap" class="qr-wrap loading">

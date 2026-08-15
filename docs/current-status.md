@@ -20,7 +20,9 @@ This is a functional prototype, not a mock. Real originals reached both the lapt
 ## Implemented
 
 - Java 21 and Spring Boot server on TCP `8787`.
-- Expo/React Native iPhone prototype with a narrow `TransferEngine` boundary.
+- Expo/React Native phone prototype with a narrow `TransferEngine` boundary.
+- Cross-platform mobile copy and a compact device-storage summary. The iPhone uses Expo's legacy asynchronous native capacity calls because the SDK 54 replacement reports an invalid free/total pair.
+- Authenticated foreground device telemetry every ten seconds, with platform, validated storage capacity, server receipt time, and connected/idle state in the Windows control panel.
 - Two-minute, single-use pairing codes created only from Windows loopback.
 - Random per-device bearer tokens; only token hashes are persisted.
 - Pair, self-unpair, revocation, re-pair, and per-device ownership.
@@ -38,7 +40,7 @@ This is a functional prototype, not a mock. Real originals reached both the lapt
 - One-command Windows development setup, managed start/status/pair/firewall/stop, persistent non-secret configuration, and per-process logs through `shove.cmd`.
 - Consent-driven, UAC-elevated firewall rules constrained to Java/Node, their required TCP ports, and the detected home subnet.
 
-The two-second JavaScript refresh exists only to update the visible destination picker. Transfer reliability must ultimately be owned by iOS background `URLSession`, never by a React Native background loop.
+The JavaScript refresh loops exist only for visible destination and device-status UI. Transfer reliability must ultimately be owned by iOS background `URLSession`, never by a React Native background loop.
 
 ## Proven on real hardware
 
@@ -63,6 +65,7 @@ The two-second JavaScript refresh exists only to update the visible destination 
 - Wi-Fi loss, Java termination, or Windows restart during a request.
 - Retry, idempotency, resumable chunks, deduplication, and a durable multi-item queue.
 - Native iOS background execution and source-side digest comparison.
+- Physical Android pairing, media selection, upload, storage reporting, and reconnect behavior. The Android Hermes production bundle compiles successfully, but no Android hardware has been tested.
 - TLS/server identity, self-contained packaged installation, Android, or installed shortcut/uninstall integration.
 
 ## Current paths and data

@@ -19,7 +19,7 @@ This directory is the source of truth for the prototype's architecture, operatio
 The documents use these labels deliberately:
 
 - **Implemented:** present in this repository and exercised by tests or the real prototype.
-- **Proven:** observed end to end on the Windows laptop and iPhone 13 mini.
+- **Proven:** observed end to end on the Windows laptop and iPhone 13 mini. The mobile UI remains cross-platform; Android hardware is not yet verified.
 - **Proposed:** agreed direction or likely next design, but not implemented.
 - **Deferred:** intentionally outside the current vertical slice.
 

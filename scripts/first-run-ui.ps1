@@ -215,7 +215,7 @@ Style-Button $externalBrowse
 $externalBrowse.Add_Click({ Add-FolderPicker $externalText "Choose a folder on the external SSD, or cancel to use Windows only" })
 $storagePanel.Controls.Add($externalBrowse)
 
-$nameLabel = New-Label "Name shown on iPhone" 20 190 180 20 9 $true
+$nameLabel = New-Label "Name shown on phone" 20 190 180 20 9 $true
 $storagePanel.Controls.Add($nameLabel)
 $externalName = New-Object Windows.Forms.TextBox
 $externalName.Location = New-Object Drawing.Point(203, 187)
@@ -230,7 +230,7 @@ $connectionPanel.Size = New-Object Drawing.Size(692, 82)
 $connectionPanel.BackColor = $Colors.Panel
 $form.Controls.Add($connectionPanel)
 $firewallCheck = New-Object Windows.Forms.CheckBox
-$firewallCheck.Text = "Allow my iPhone to reach Shove on this home Wi-Fi"
+$firewallCheck.Text = "Allow my phone to reach Shove on this home Wi-Fi"
 $firewallCheck.Checked = $true
 $firewallCheck.Location = New-Object Drawing.Point(20, 15)
 $firewallCheck.Size = New-Object Drawing.Size(620, 24)
@@ -310,7 +310,7 @@ $timer.Add_Tick({
         (Test-Path -LiteralPath $SetupOutLog) -and
         [bool](Select-String -LiteralPath $SetupOutLog -SimpleMatch "Setup complete." -Quiet)
     if ($setupProcess.ExitCode -eq 0 -or $setupComplete) {
-        $readiness.Text = "Shove is ready. Open it and pair your iPhone."
+        $readiness.Text = "Shove is ready. Open it and pair your phone."
         $readiness.ForeColor = $Colors.Mint
         $prepareButton.Visible = $false
         $openButton.Visible = $true
@@ -366,7 +366,7 @@ $prepareButton.Add_Click({
     $cancelButton.Enabled = $false
     $progress.Visible = $true
     $logBox.Visible = $true
-    $readiness.Text = "Preparing the private server and iPhone client…"
+    $readiness.Text = "Preparing the private server and mobile client…"
     $readiness.ForeColor = $Colors.Text
     $timer.Start()
 })

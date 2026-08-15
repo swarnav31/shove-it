@@ -14,7 +14,7 @@ This repository currently provides a **source preview**, not a finished installe
 | pnpm | pnpm 10 installed separately | Not needed |
 | Docker or WSL | Not needed | Not needed |
 | Git | Only when cloning; downloading a ZIP is fine | Not needed |
-| iPhone | Expo Go | Expo Go for the friend alpha |
+| Phone | Expo Go on iOS or Android | Expo Go for the friend alpha |
 
 Do not send the source preview to a nontechnical friend yet. The friend-ready milestone is one Windows package plus Expo Go—nothing else.
 
@@ -27,8 +27,8 @@ That installer will check and repair Shove's own bundled runtime. It will not de
 Confirm the following:
 
 - Java 21, Maven, Node.js 20.19+, and pnpm 10 are installed on Windows.
-- Expo Go is installed on the iPhone.
-- The Windows laptop and iPhone are connected to the same trusted home Wi-Fi.
+- Expo Go is installed on the phone.
+- The Windows laptop and phone are connected to the same trusted home Wi-Fi.
 - The repository is on the Windows filesystem, such as `D:\Shove-it`, not inside WSL.
 - The Windows system drive has at least 5 GB free; 10 GB is more comfortable for the development toolchain.
 
@@ -47,8 +47,8 @@ These are temporary source-preview requirements. Do not ask a friend or customer
 2. Double-click **`Open Shove.cmd`**. A brief command-window flash is expected in this source preview; all interaction happens in the Shove setup window.
 3. Leave **Windows folder** at its suggested value or select **Browse**.
 4. If an external SSD is connected, Shove suggests `<drive>:\Shove`. Keep it, browse elsewhere, or leave external storage blank.
-5. Give the SSD the friendly name that should appear on the iPhone.
-6. Leave **Allow my iPhone to reach Shove on this home Wi-Fi** selected.
+5. Give the SSD the friendly name that should appear on the phone.
+6. Leave **Allow my phone to reach Shove on this home Wi-Fi** selected.
 7. Select **Prepare Shove** and personally approve the Windows permission prompt.
 8. Wait for **Shove is ready**. The first preparation can take several minutes.
 9. Select **Open Shove**. The Windows control panel opens in the browser.
@@ -58,22 +58,22 @@ Setup creates narrow firewall access only for the Java upload port `8787` and Ex
 ### Connect and transfer
 
 1. In the Windows control panel, confirm the status says **Ready** and the intended storage says **Available**.
-2. Open Expo Go on the iPhone and scan the QR shown by Shove.
+2. Open Expo Go on the phone and scan the QR shown by Shove.
 3. In Windows, select **Create pairing code**.
-4. Enter the six-digit code on the iPhone and pair.
+4. Enter the six-digit code on the phone and pair.
 5. Choose **This Windows PC** or the named external SSD.
 6. Choose one photo or video and keep Expo Go open during this prototype transfer.
 7. Wait for **Verified on Windows**.
 8. Confirm the Windows control panel shows the transfer as **Verified**.
 
-Shove never deletes the source item from the iPhone in this prototype.
+Shove never deletes the source item from the phone in this prototype.
 
 ### Use it again later
 
 - Double-click **`Open Shove.cmd`** to start the saved setup and open the control panel.
 - Double-click **`Shove Settings.cmd`** to change storage choices.
 - If the external SSD is absent, Shove marks it disconnected and keeps Windows storage available.
-- If Windows remembers a phone that the iPhone no longer recognizes—or vice versa—Shove clears the orphaned phone credential and returns to pairing.
+- If Windows remembers a phone that the mobile app no longer recognizes—or vice versa—Shove clears the orphaned credential and returns to pairing.
 
 ## If something does not work
 
@@ -91,7 +91,7 @@ The remainder of this guide explains the networking and diagnostic command-line 
 Shove transfers files directly across the home Wi-Fi network:
 
 ```text
-iPhone
+Phone
   |
   | home Wi-Fi
   v
@@ -102,7 +102,7 @@ Windows computer
 Internal drive or external SSD
 ```
 
-The photo or video does not need to pass through a Shove cloud service. The iPhone opens a connection to the Windows computer's private Wi-Fi address, such as `192.168.1.8`.
+The photo or video does not need to pass through a Shove cloud service. The phone opens a connection to the Windows computer's private Wi-Fi address, such as `192.168.1.8`.
 
 Both devices must normally be connected to the same home network. A guest Wi-Fi network may prevent devices from seeing one another.
 
@@ -110,7 +110,7 @@ Both devices must normally be connected to the same home network. A guest Wi-Fi 
 
 Windows Firewall blocks unsolicited inbound connections by default, especially when a Wi-Fi network is classified as **Public**.
 
-Opening a website from the computer still works because the computer initiates that outbound connection. Shove works in the other direction: the iPhone initiates a new connection to the Shove server on the computer.
+Opening a website from the computer still works because the computer initiates that outbound connection. Shove works in the other direction: the phone initiates a new connection to the Shove server on the computer.
 
 For the prototype, two local development services are involved:
 
@@ -119,7 +119,7 @@ For the prototype, two local development services are involved:
 | TCP `8787` | Java / Spring Boot | Pairing and photo/video uploads |
 | TCP `8081` | Node.js / Expo | Loads the development app in Expo Go |
 
-Port `8081` is required by the source preview and the planned Expo Go friend alpha. It disappears only after Shove can distribute a standalone iPhone build instead of loading through Expo Go.
+Port `8081` is required by the source preview and the planned Expo Go friend alpha. It disappears only after Shove can distribute a standalone mobile build instead of loading through Expo Go.
 
 Allowing these ports does not make the computer a public internet server. A safe rule should be restricted to:
 
@@ -145,7 +145,7 @@ The graphical path above is the supported onboarding flow. Use the following onl
 
 ### 1. Connect both devices
 
-Connect the Windows computer and iPhone to the same normal Wi-Fi network. Avoid a network name containing “Guest” unless the router explicitly permits communication between guests.
+Connect the Windows computer and phone to the same normal Wi-Fi network. Avoid a network name containing “Guest” unless the router explicitly permits communication between guests.
 
 ### 2. Find the computer's Wi-Fi address
 
@@ -157,7 +157,7 @@ ipconfig
 
 Under **Wireless LAN adapter Wi-Fi**, find **IPv4 Address**. It will commonly look like `192.168.1.8` or `192.168.0.20`.
 
-Ignore addresses belonging to WSL, Docker, VPNs, or virtual Ethernet adapters. The address required by the iPhone is the physical Wi-Fi adapter's address.
+Ignore addresses belonging to WSL, Docker, VPNs, or virtual Ethernet adapters. The address required by the phone is the physical Wi-Fi adapter's address.
 
 ### 3. Configure and start Shove
 
@@ -227,9 +227,9 @@ status storageWritable
 ok                 True
 ```
 
-### 6. Check it from the iPhone
+### 6. Check it from the phone
 
-In Safari on the iPhone, open:
+In a browser on the phone, open:
 
 ```text
 http://<windows-ip>:8787/healthz
@@ -245,7 +245,7 @@ If Safari displays a small JSON response containing `"status":"ok"`, the Wi-Fi r
 
 ### 7. Open the Expo development client
 
-This step exists for the source preview and the planned Expo Go friend alpha. The friend Windows package will bundle Node and Metro, so friends will not install or operate them. A later standalone iPhone release can remove Metro and port `8081` entirely.
+This step exists for the source preview and the planned Expo Go friend alpha. The friend Windows package will bundle Node and Metro, so friends will not install or operate them. A later standalone mobile release can remove Metro and port `8081` entirely.
 
 Expo/Metro was already started by `shove.cmd start`. To print its current URL again:
 
@@ -280,7 +280,7 @@ In the Shove development app:
 1. A clean Expo session uses the Windows server address supplied by Metro. If the phone has a saved address from an earlier test network, replace it with the **Phone server URL** shown by `.\shove.cmd status`.
 2. Select **Find my server**.
 3. Enter the six-digit pairing code.
-4. Select **Pair iPhone**.
+4. Select **Pair phone**.
 5. In **Destination**, choose the Windows library or external SSD.
 6. Choose one photo or video.
 
@@ -294,7 +294,7 @@ The phone reports **Verified on Windows** only after the server has:
 4. atomically promoted it into the dated Shove Library folder;
 5. returned the verification receipt.
 
-The prototype does not delete the source item from the iPhone.
+The prototype does not delete the source item from the phone.
 
 ## Inspecting paired devices and upload history
 
@@ -331,7 +331,7 @@ Invoke-RestMethod `
 
 Revocation immediately prevents that token from authenticating another upload. The phone must pair again to receive a new token. Revocation does not delete previously transferred files or their audit records.
 
-The iPhone app also provides **Unpair this iPhone**. It calls the authenticated self-revocation endpoint and clears the token from iOS secure storage. Use that action when repeating the pairing journey from scratch; it does not remove transferred originals.
+The mobile app also provides **Unpair this phone**. It calls the authenticated self-revocation endpoint and clears the token from platform secure storage. Use that action when repeating the pairing journey from scratch; it does not remove transferred originals.
 
 ## Removing the prototype firewall rules
 
@@ -339,11 +339,11 @@ The iPhone app also provides **Unpair this iPhone**. It calls the authenticated 
 .\shove.cmd firewall -Remove
 ```
 
-Approve the Windows UAC prompt. The helper removes only the named Shove rules. Removing them prevents the iPhone from initiating new connections to those development services; it does not delete transferred photos, paired-device records, or application files.
+Approve the Windows UAC prompt. The helper removes only the named Shove rules. Removing them prevents the phone from initiating new connections to those development services; it does not delete transferred photos, paired-device records, or application files.
 
 ## Troubleshooting
 
-### The laptop works locally, but Safari on the iPhone cannot connect
+### The laptop works locally, but the phone browser cannot connect
 
 Check these in order:
 
@@ -378,7 +378,7 @@ Run `pair.cmd` again and enter the new code within two minutes. Each code can be
 
 ### Expo reports `ENOSPC` or "no space left on device"
 
-This means the Windows system drive is full, not that the iPhone lacks memory. Free space on `C:` and retry. Package download caches under `C:\Users\<you>\AppData\Local\npm-cache` and the pnpm store are disposable and can be downloaded again; do not remove the repository's `node_modules` directory while Metro is expected to run.
+This means the Windows system drive is full, not that the phone lacks storage. Free space on `C:` and retry. Package download caches under `C:\Users\<you>\AppData\Local\npm-cache` and the pnpm store are disposable and can be downloaded again; do not remove the repository's `node_modules` directory while Metro is expected to run.
 
 ### Expo reports that PowerShell scripts are disabled
 
@@ -411,4 +411,4 @@ The Expo Go friend-alpha package should:
 - allow network access removal and device unpairing in the UI;
 - preserve transferred files during uninstall unless the customer explicitly chooses otherwise.
 
-Once Shove has a standalone iPhone build, the Windows package can drop Node, Metro, Expo port `8081`, and the Expo Go prerequisite.
+Once Shove has standalone mobile builds, the Windows package can drop Node, Metro, Expo port `8081`, and the Expo Go prerequisite.

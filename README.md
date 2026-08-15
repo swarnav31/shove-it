@@ -4,13 +4,17 @@
 
 > **Current status: working source preview, not yet a self-contained installer.** The new setup window removes terminal interaction, but the laptop must currently have Java 21, Maven, Node.js 20.19+, and pnpm 10 installed. Docker and WSL are not required.
 
+![Shove Windows control panel showing iPhone and Android Expo onboarding](docs/images/shove-control-panel.png)
+
+*The local Windows control panel: connect through Expo Go, pair once, and send originals to the PC or an attached drive.*
+
 The shortest working path is:
 
 1. Put this repository in a normal Windows folder.
-2. Install **Expo Go** on the iPhone and connect both devices to the same trusted home Wi-Fi.
+2. Install **Expo Go** on the phone and connect it and the laptop to the same trusted home Wi-Fi.
 3. Double-click **`Open Shove.cmd`**.
 4. Choose the Windows folder and optional external SSD in the setup window.
-5. Leave **Allow my iPhone to reach Shove** selected and personally approve the Windows permission prompt.
+5. Leave **Allow my phone to reach Shove** selected and personally approve the Windows permission prompt.
 6. When preparation finishes, select **Open Shove**.
 7. Scan the QR, create a pairing code, and send one photo.
 
@@ -18,7 +22,7 @@ On later runs, double-click **`Open Shove.cmd`** again. It starts the saved conf
 
 Read the [easy Windows usage guide](docs/windows-usage-guide.md) for prerequisites, screenshots-to-expect, the first transfer, and simple troubleshooting.
 
-> **Friend-ready installer: next milestone.** Friends install only Shove on Windows and Expo Go on the iPhone. Shove will carry small private Java and Node/Metro runtimes, reuse or repair its own files, and leave any developer tools untouched. Maven and pnpm will not be installed for customers. See the [customer-alpha acceptance criteria](docs/customer-alpha.md).
+> **Friend-ready installer: next milestone.** Friends install only Shove on Windows and Expo Go on their phone. Shove will carry small private Java and Node/Metro runtimes, reuse or repair its own files, and leave any developer tools untouched. Maven and pnpm will not be installed for customers. See the [customer-alpha acceptance criteria](docs/customer-alpha.md).
 
 Terminal commands and APIs are retained for development and troubleshooting, but are not the intended onboarding path.
 
@@ -28,9 +32,9 @@ Documentation: [docs index](docs/README.md) · [architecture](docs/architecture.
 
 > Shove your photos home.
 
-Shove is a privacy-first, self-hosted photo offload system. It sends full-resolution photos and videos from an iPhone to a Windows or macOS computer—and to storage attached to that computer—without routing the library through a commercial cloud.
+Shove is a privacy-first, self-hosted photo offload system. It sends full-resolution photos and videos from a phone to a Windows or macOS computer—and to storage attached to that computer—without routing the library through a commercial cloud.
 
-**Status:** weekend prototype with the first iPhone-to-Windows transfer proven on real hardware. `Shove` is a working name, not a final brand decision.
+**Status:** weekend prototype with the first phone-to-Windows transfer verified on an iPhone 13 mini. The shared Expo client is intended to remain Android-compatible, but Android hardware has not yet been tested. `Shove` is a working name, not a final brand decision.
 
 ## Proven vertical slice
 
@@ -81,14 +85,14 @@ The promise is simple: **free space on your phone; keep the originals at home.**
 1. **Local first.** The home computer is the destination; no cloud account is required.
 2. **Originals are sacred.** Preserve original bytes and useful source metadata.
 3. **Never imply safety without verification.** A file is safe only after the server persists it and verifies its digest.
-4. **Deletion is explicit.** The prototype never automatically deletes from the iPhone.
+4. **Deletion is explicit.** The prototype never automatically deletes from the phone.
 5. **Secure by default.** Devices pair explicitly; the server is not exposed to the public internet.
 6. **Boring storage.** Photos remain normal files in a user-controlled directory.
 7. **Recoverable transfers.** Interrupted uploads retry or resume; partial files never appear as completed originals.
 
 ## Immediate goal: prove the pipe
 
-V1 is not a React Native or Expo architecture exercise. Its sole purpose is to prove that an original selected on the iPhone can cross the home Wi-Fi network, land on the Windows laptop, be verified, and produce a trustworthy acknowledgement on the phone.
+V1 is not a React Native or Expo architecture exercise. Its sole purpose is to prove that an original selected on a phone can cross the home Wi-Fi network, land on the Windows laptop, be verified, and produce a trustworthy acknowledgement on the phone.
 
 The first working slice is intentionally disposable around the edges. We keep one narrow `TransferEngine` interface so a native implementation can replace the foreground adapter later, but we do not build a custom Expo module, background scheduler, elaborate state framework, or production navigation for this slice.
 
@@ -103,7 +107,7 @@ Windows server starts
 User chooses a storage directory
         |
         v
-iPhone pairs with a short-lived code / QR payload
+Phone pairs with a short-lived code / QR payload
         |
         v
 User selects a photo or video
@@ -121,14 +125,14 @@ Phone reports verified; Windows audit records the result
 ### Pipeline must have
 
 - Java server runs on the Windows laptop and is reachable over local Wi-Fi.
-- Expo app runs on the iPhone 13 mini through Expo Go.
+- Expo app runs on a phone through Expo Go; the proven device is an iPhone 13 mini.
 - User can select an original photo or video.
 - The foreground client uploads the selected file to a manually entered laptop address.
 - The client shows uploading, verifying, complete, or failed state.
 - Server writes to a temporary file and atomically promotes a successful upload.
 - Server calculates SHA-256 and records the verified result.
 - The final bytes, size, and digest can be inspected on the laptop.
-- The first slice works on the actual iPhone 13 mini and Windows laptop.
+- The first slice remains compatible with Android while retaining the verified iPhone path.
 
 ### Next only after the pipe works
 
@@ -143,7 +147,7 @@ Phone reports verified; Windows audit records the result
 ### Explicitly deferred
 
 - Automatic photo discovery/sync (native background execution of user-queued transfers is part of the target architecture)
-- Automatic deletion from the iPhone
+- Automatic deletion from the phone
 - Remote access outside the home network
 - End-to-end encrypted remote transport
 - Albums, face recognition, search, and editing
@@ -156,7 +160,7 @@ Phone reports verified; Windows audit records the result
 
 ```text
 +----------------------+       local Wi-Fi       +---------------------------+
-| iPhone client        |  -------------------->  | Shove server              |
+| Phone client         |  -------------------->  | Shove server              |
 | React Native / Expo  |       authenticated     | Java 21 / Spring Boot     |
 |                      |       HTTP uploads       |                           |
 | - pairing            |                          | - pairing/auth            |
@@ -180,7 +184,7 @@ Phone reports verified; Windows audit records the result
 
 ### `apps/mobile`
 
-The iPhone-facing Expo application.
+The phone-facing Expo application. Its current foreground path is shared by iOS and Android; physical end-to-end verification has so far been performed only on iPhone.
 
 - **Implemented:** manual server address, short-code pairing, secure token storage, photo/video picker, one foreground transfer with progress, verified result, and self-unpair.
 - **Proposed:** QR pairing, durable multi-item queue, retry/cancel UX, activity history, and broader settings.
@@ -280,6 +284,7 @@ Routes are provisional and versioned under `/api/v1`.
 | `GET` | `/api/v1/devices` | List paired devices; laptop loopback only |
 | `DELETE` | `/api/v1/devices/{id}` | Revoke a paired device; laptop loopback only |
 | `DELETE` | `/api/v1/device` | Authenticated device revokes its own token |
+| `PUT` | `/api/v1/device/status` | Authenticated foreground device reports validated platform and storage telemetry |
 | `GET` | `/api/v1/destinations` | List approved storage choices and live availability |
 | `GET` | `/api/v1/admin/uploads` | List the complete upload audit; laptop loopback only |
 | `GET` | `/api/v1/admin/overview` | Control-panel connectivity and live destination status; laptop loopback only |
@@ -321,7 +326,7 @@ These device and upload records are persisted in SQLite. Upload ownership checks
 ```text
 .
 |-- apps/
-|   `-- mobile/       # Expo / React Native iPhone client
+|   `-- mobile/       # Expo / React Native phone client
 |-- docs/             # Architecture, decisions, verification, and usage
 |-- scripts/          # Windows prototype helpers
 |-- server/           # Java 21 / Spring Boot home server
@@ -340,11 +345,11 @@ These device and upload records are persisted in SQLite. Upload ownership checks
 - Git
 - Java 21 and Maven 3.6.3+
 - Node.js 20.19+ and pnpm
-- Laptop and iPhone connected to the same Wi-Fi network
+- Laptop and phone connected to the same Wi-Fi network
 
-### iPhone
+### Phone
 
-- Expo Go from the App Store
+- Expo Go from the phone's app store
 - Photos permission for the Shove development client
 
 ## Getting started
@@ -368,7 +373,7 @@ The server defaults to port `8787`, stores its SQLite audit at `server/shove.db`
 
 Firewall actions and their resulting narrow rule scopes are recorded at `.shove-dev\logs\firewall.log` for troubleshooting.
 
-### First iPhone transfer
+### First phone transfer
 
 1. Configure and start the development prototype:
 
@@ -392,7 +397,7 @@ Firewall actions and their resulting narrow rule scopes are recorded at `.shove-
 
 If firewall setup was skipped or the home subnet changed, run `.\shove.cmd firewall` and approve the Windows prompt. The rules accept traffic only from the detected local subnet. Remove only Shove-managed rules with `.\shove.cmd firewall -Remove`.
 
-For the exact firewall scope, iPhone connectivity check, safe rule removal, and customer-release requirements, see the [Windows local-network usage guide](docs/windows-usage-guide.md).
+For the exact firewall scope, phone connectivity check, safe rule removal, and customer-release requirements, see the [Windows local-network usage guide](docs/windows-usage-guide.md).
 
 ## Two-day build order
 
@@ -414,7 +419,7 @@ For the exact firewall scope, iPhone connectivity check, safe rule removal, and 
 
 ## Acceptance test
 
-The first milestone succeeds when a full-resolution photo and a large video selected on the iPhone 13 mini arrive intact on the Windows laptop, their server-calculated SHA-256 digests are returned to the phone, and the source photo library remains untouched. The weekend stretch goal is a small mixed batch with retry and no duplicate final files.
+The first milestone succeeds when a full-resolution photo and a large video selected on a phone arrive intact on the Windows laptop, their server-calculated SHA-256 digests are returned to the phone, and the source photo library remains untouched. This milestone is verified on an iPhone 13 mini; Android remains unverified. The weekend stretch goal is a small mixed batch with retry and no duplicate final files.
 
 ## Open decisions after the prototype
 

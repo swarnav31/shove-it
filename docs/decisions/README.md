@@ -24,6 +24,7 @@ These records capture the decisions behind the prototype. Accepted records descr
 | [0018](0018-expo-go-for-friend-alpha.md) | Accepted for friend alpha | Bundle Metro on Windows and use Expo Go until Apple distribution is available |
 | [0019](0019-gui-first-run-before-the-server.md) | Accepted for source preview | Use a Windows first-run bootstrap before handing off to the embedded control panel |
 | [0020](0020-private-customer-runtime.md) | Accepted for customer packaging | Ship and repair a small private runtime without touching developer tools |
+| [0021](0021-authenticated-foreground-device-status.md) | Accepted | Treat phone storage and presence as authenticated foreground telemetry |
 
 ## ADR format
 

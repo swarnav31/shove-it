@@ -91,6 +91,8 @@ The complete first-run path was then repeated with launcher state and SQLite mov
 
 Through those newly automated rules, the iPhone connected, created the only device in the fresh database, paired, and created the only upload row. The 1,823,392-byte HEIC reached the T7 in 2.051 seconds, matched the final file size and SHA-256, and left zero local or external `.part` files.
 
+The shared Expo application also successfully exports a production Android Hermes bundle (596 modules, approximately 1.8 MB). This verifies build compatibility only. No Android device has yet exercised discovery, pairing, secure token storage, media selection, upload, or reconnect behavior, so the end-to-end pipeline remains verified on iPhone only.
+
 ## Known prototype limitations
 
 Not yet proven:
@@ -102,6 +104,7 @@ Not yet proven:
 - retry, idempotency, duplicate suppression, or resumable offsets;
 - a multi-item durable queue;
 - native iOS background execution;
+- physical Android end-to-end behavior;
 - independent source-side hash comparison;
 - TLS and authenticated server identity;
 - packaged Windows/iOS installation.

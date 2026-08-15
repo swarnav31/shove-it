@@ -25,7 +25,7 @@ Write-Host ""
 Write-Host "    $code" -ForegroundColor White
 Write-Host ""
 Write-Host "Single use. Expires at $($expiresAt.ToLocalTime().ToString('T')) (two-minute lifetime)."
-Write-Host "Enter it in Step 2 on the iPhone."
+Write-Host "Enter it in Step 2 on the phone."
 Write-Host ""
 
 if ($Cli) {
@@ -41,7 +41,7 @@ try {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Pair your iPhone with Shove"
+$form.Text = "Pair your phone with Shove"
 $form.ClientSize = New-Object System.Drawing.Size(430, 265)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
@@ -52,7 +52,7 @@ $form.BackColor = [System.Drawing.Color]::FromArgb(7, 17, 14)
 $form.ForeColor = [System.Drawing.Color]::FromArgb(244, 255, 249)
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = "Pair your iPhone"
+$title.Text = "Pair your phone"
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 17, [System.Drawing.FontStyle]::Bold)
 $title.Location = New-Object System.Drawing.Point(24, 20)
 $title.Size = New-Object System.Drawing.Size(380, 34)
@@ -132,4 +132,3 @@ $timer.Add_Tick({
 $form.Add_Shown({ $timer.Start() })
 $form.Add_FormClosed({ $timer.Stop(); $timer.Dispose() })
 [void]$form.ShowDialog()
-
