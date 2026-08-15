@@ -18,7 +18,7 @@ flowchart LR
     J["Shove server<br/>Java 21 + Spring Boot :8787"]
     DB[("SQLite<br/>shove.db")]
     FS[("Approved Shove Libraries<br/>internal disk / external SSD")]
-    W["Windows owner tools<br/>pair.cmd, DBeaver, PowerShell"]
+    W["Windows owner tools<br/>shove.cmd, pair popup, DBeaver"]
 
     U -->|"selects media, enters pairing code"| I
     M -->|"development bundle only"| I
@@ -103,6 +103,16 @@ The configured root contains an internal incoming area and a human-readable libr
 
 Each registered root has the same layout. The upload ID prevents collisions while retaining the original filename. Partial files never appear in `Shove Library` as completed originals. The phone selects only the opaque IDs `local` or `external`; it cannot submit a Windows path.
 
+Local uploads stream directly into the local incoming area. External uploads first stream into a local staging part and are then copied sequentially to the selected drive's incoming area. Java flushes and atomically promotes the external part before reporting success. This keeps memory bounded and avoids coupling the phone's HTTP receive loop to pathological removable-drive write latency observed with the T7's exFAT filesystem.
+
+```mermaid
+flowchart LR
+    PHONE["Paired phone"] -->|"HTTP stream + SHA-256"| LOCAL["Local staging .part"]
+    LOCAL -->|"large sequential copy"| EXTERNAL["External .part"]
+    EXTERNAL -->|"flush + atomic rename"| LIBRARY["External Shove Library"]
+    LIBRARY --> AUDIT["Verified SQLite receipt"]
+```
+
 ## Trust boundaries
 
 ```mermaid
@@ -145,6 +155,8 @@ Current HTTP traffic is not encrypted. The prototype is safe only for a trusted 
 | `GET` | `/api/v1/devices` | Loopback only; list paired devices |
 | `DELETE` | `/api/v1/devices/{id}` | Loopback only; revoke a device |
 | `GET` | `/api/v1/admin/uploads` | Loopback only; complete upload audit |
+| `GET` | `/api/v1/admin/overview` | Loopback only; control-panel readiness and destinations |
+| `GET` | `/api/v1/admin/expo-qr.svg` | Loopback only; locally generated Expo Go QR |
 | `POST` | `/api/v1/dev/uploads` | Development profile only; deliberate authentication bypass for plumbing tests |
 
 The whole-file endpoint is intentionally simple. Resumable sessions, explicit offsets, and idempotent completion are deferred until interruption tests provide concrete protocol requirements.
@@ -176,9 +188,11 @@ The operating system—not a JavaScript timer or React component—must own back
 
 Current development deployment:
 
-- Java and Metro run directly in Windows PowerShell.
+- `shove.cmd` provides setup, managed Java/Metro lifecycle, health/status, pairing, logs, phone-address injection, and automatic control-panel launch.
+- Non-secret developer configuration and runtime records live under ignored `.shove-dev`.
+- Java runs from the packaged Spring Boot JAR; Metro remains development-only.
 - The repository and default media directory are on the Windows filesystem, not inside WSL.
 - The iPhone and laptop use the same Wi-Fi subnet.
 - Windows firewall rules permit only Java `8787` and development Node `8081` from the home subnet.
 
-Customer deployment is deferred. It should package Java, manage startup and narrow firewall access, provide a local admin surface, and eliminate Node/Expo/PowerShell prerequisites.
+Customer packaging is deferred. The local admin surface is implemented; the package must now include private Java and Node/Metro runtimes, check/repair its own small manifest, manage startup and narrow firewall access, and leave system developer tools untouched. Maven and pnpm remain build-only.

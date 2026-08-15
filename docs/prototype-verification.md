@@ -55,6 +55,14 @@
 - With no transfer active, physically disconnecting the T7 was reflected in the iPhone UI within the two-second refresh window.
 - The disconnected T7 became unavailable and the selection safely fell back to the Windows destination without restarting Java or Expo.
 
+### External-drive performance investigation
+
+A fresh-pairing retest exposed a repeatable performance problem with direct request streaming to the T7's exFAT filesystem. The same 2,308,501-byte JPEG took 0.456 seconds to the local destination but 29.65-30.72 seconds across repeated external uploads. All copies remained byte- and SHA-256-correct.
+
+Six live Java thread samples caught the request blocked in Windows' native file-write call. A controlled Java sequence that copied the same local file to the T7, durably flushed it, and atomically renamed it completed in about two seconds. External uploads were therefore changed to receive into a bounded-memory local staging part before a sequential copy, durable external flush, and atomic promotion.
+
+The same iPhone and JPEG completed the post-fix T7 upload in 1.74 seconds (10.61 Mbps). The 2,308,501-byte final file matched the receipt and SHA-256, and both the local staging and external incoming directories contained zero `.part` files afterward. Automated success and length-mismatch cleanup tests also pass.
+
 One verified post-re-pair example:
 
 ```text
@@ -73,8 +81,15 @@ Java tests cover:
 - streaming, hashing, and atomic promotion;
 - exact SHA-256 and stored bytes;
 - partial cleanup and persistent failed audit state on a length mismatch.
+- local staging, external promotion, and cleanup of both incoming areas.
 
 The mobile strict TypeScript check passes. The foreground engine and UI were additionally exercised through the real Expo Go client.
+
+The Windows development launcher was exercised end to end: persistent setup, Java packaging, locked pnpm installation, managed Java and Metro startup, health/status and LAN URL discovery, real pairing-code creation, verified PID-scoped shutdown, and confirmation that ports `8787` and `8081` were closed afterward.
+
+The complete first-run path was then repeated with launcher state and SQLite moved to a recoverable backup, the phone explicitly unpaired, the Shove-managed firewall rules absent, and two older broad Java inbound rules disabled. Interactive `setup` detected `192.168.1.0/24`, requested consent and UAC approval, and created only the Java `8787` and Expo `8081` TCP rules for that subnet. Elevated read-back matched the persistent `.shove-dev/logs/firewall.log` entries for rule name, executable, direction, action, profile, protocol, port, and remote scope.
+
+Through those newly automated rules, the iPhone connected, created the only device in the fresh database, paired, and created the only upload row. The 1,823,392-byte HEIC reached the T7 in 2.051 seconds, matched the final file size and SHA-256, and left zero local or external `.part` files.
 
 ## Known prototype limitations
 
@@ -84,7 +99,6 @@ Not yet proven:
 - behavior when Wi-Fi disappears mid-request;
 - Java termination or Windows restart mid-request;
 - external SSD removal during a write or promotion (normal external-SSD completion is proven);
-- physical SSD reconnection and automatic reappearance after a clean disconnect;
 - retry, idempotency, duplicate suppression, or resumable offsets;
 - a multi-item durable queue;
 - native iOS background execution;

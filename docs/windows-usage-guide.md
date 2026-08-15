@@ -1,10 +1,90 @@
-# Shove on Windows: local-network usage guide
+# Shove on Windows: easy usage guide
 
-Back to the [documentation index](README.md).
+Back to the [main README](../README.md).
 
-This guide explains how Shove connects an iPhone to a Windows computer, why Windows may ask for network permission, and how to configure that access safely.
+## First: know which version this is
 
-> This document describes the prototype. A customer release should automate most of these steps in the Windows installer and desktop application.
+This repository currently provides a **source preview**, not a finished installer. Its Windows setup is graphical, but it still uses development software already installed on the laptop.
+
+| Laptop requirement | Source preview today | Friend installer target |
+| --- | --- | --- |
+| Java | Java 21 JDK installed separately | Bundled |
+| Maven | Installed separately | Not needed |
+| Node.js | Node.js 20.19+ installed separately | Bundled for the Expo alpha |
+| pnpm | pnpm 10 installed separately | Not needed |
+| Docker or WSL | Not needed | Not needed |
+| Git | Only when cloning; downloading a ZIP is fine | Not needed |
+| iPhone | Expo Go | Expo Go for the friend alpha |
+
+Do not send the source preview to a nontechnical friend yet. The friend-ready milestone is one Windows package plus Expo Go—nothing else.
+
+That installer will check and repair Shove's own bundled runtime. It will not depend on, upgrade, or reconfigure Java, Node, Maven, or pnpm already installed for development.
+
+## Set up the source preview
+
+### Before opening Shove
+
+Confirm the following:
+
+- Java 21, Maven, Node.js 20.19+, and pnpm 10 are installed on Windows.
+- Expo Go is installed on the iPhone.
+- The Windows laptop and iPhone are connected to the same trusted home Wi-Fi.
+- The repository is on the Windows filesystem, such as `D:\Shove-it`, not inside WSL.
+- The Windows system drive has at least 5 GB free; 10 GB is more comfortable for the development toolchain.
+
+If the setup window reports missing software, install it in this order and then reopen Shove:
+
+1. [Eclipse Temurin JDK 21](https://adoptium.net/temurin/releases/?version=21) for Windows. Use the JDK, not only the JRE, and allow the installer to add Java to `PATH`.
+2. [Apache Maven for Windows](https://maven.apache.org/guides/getting-started/windows-prerequisites.html).
+3. A Windows LTS installer from the [official Node.js download page](https://nodejs.org/en/download).
+4. pnpm 10. After Node is installed, run `npm install --global pnpm@10.14.0` once in PowerShell. The [official pnpm installation guide](https://pnpm.io/installation) documents the available Windows installation methods.
+
+These are temporary source-preview requirements. Do not ask a friend or customer to perform this toolchain setup.
+
+### First launch
+
+1. Open the repository folder in File Explorer.
+2. Double-click **`Open Shove.cmd`**. A brief command-window flash is expected in this source preview; all interaction happens in the Shove setup window.
+3. Leave **Windows folder** at its suggested value or select **Browse**.
+4. If an external SSD is connected, Shove suggests `<drive>:\Shove`. Keep it, browse elsewhere, or leave external storage blank.
+5. Give the SSD the friendly name that should appear on the iPhone.
+6. Leave **Allow my iPhone to reach Shove on this home Wi-Fi** selected.
+7. Select **Prepare Shove** and personally approve the Windows permission prompt.
+8. Wait for **Shove is ready**. The first preparation can take several minutes.
+9. Select **Open Shove**. The Windows control panel opens in the browser.
+
+Setup creates narrow firewall access only for the Java upload port `8787` and Expo port `8081`, restricted to the current home subnet. It does not disable Windows Firewall or configure internet/router access.
+
+### Connect and transfer
+
+1. In the Windows control panel, confirm the status says **Ready** and the intended storage says **Available**.
+2. Open Expo Go on the iPhone and scan the QR shown by Shove.
+3. In Windows, select **Create pairing code**.
+4. Enter the six-digit code on the iPhone and pair.
+5. Choose **This Windows PC** or the named external SSD.
+6. Choose one photo or video and keep Expo Go open during this prototype transfer.
+7. Wait for **Verified on Windows**.
+8. Confirm the Windows control panel shows the transfer as **Verified**.
+
+Shove never deletes the source item from the iPhone in this prototype.
+
+### Use it again later
+
+- Double-click **`Open Shove.cmd`** to start the saved setup and open the control panel.
+- Double-click **`Shove Settings.cmd`** to change storage choices.
+- If the external SSD is absent, Shove marks it disconnected and keeps Windows storage available.
+- If Windows remembers a phone that the iPhone no longer recognizes—or vice versa—Shove clears the orphaned phone credential and returns to pairing.
+
+## If something does not work
+
+- **The setup window lists missing software:** install the named Java/Maven/Node/pnpm prerequisite, then reopen Shove.
+- **Open Shove appears to do nothing:** wait up to 30 seconds, then open `http://127.0.0.1:8787/admin/` on the laptop.
+- **The phone cannot load the QR project:** confirm both devices use the same non-guest Wi-Fi and approve the Windows firewall prompt.
+- **Pairing fails:** create a new code; codes are single-use and expire after two minutes.
+- **The SSD is disconnected:** reconnect the same drive and folder. It should reappear automatically within a few seconds.
+- **More detail is needed:** logs are stored under `.shove-dev\logs` in the repository.
+
+The remainder of this guide explains the networking and diagnostic command-line workflow. Normal onboarding should not require it.
 
 ## What Shove connects
 
@@ -39,7 +119,7 @@ For the prototype, two local development services are involved:
 | TCP `8787` | Java / Spring Boot | Pairing and photo/video uploads |
 | TCP `8081` | Node.js / Expo | Loads the development app in Expo Go |
 
-Port `8081` is only required during development. A packaged customer app will not need Expo or the Node.js development server.
+Port `8081` is required by the source preview and the planned Expo Go friend alpha. It disappears only after Shove can distribute a standalone iPhone build instead of loading through Expo Go.
 
 Allowing these ports does not make the computer a public internet server. A safe rule should be restricted to:
 
@@ -59,7 +139,9 @@ For example, a computer with address `192.168.1.8/24` is usually on subnet `192.
 - Pairing protects the upload endpoint, but the current prototype still uses unencrypted HTTP on the trusted LAN.
 - A production release must authenticate the server identity and encrypt transport before supporting untrusted or remote networks.
 
-## Prototype setup
+## Diagnostic command-line workflow
+
+The graphical path above is the supported onboarding flow. Use the following only to troubleshoot or develop Shove.
 
 ### 1. Connect both devices
 
@@ -77,57 +159,57 @@ Under **Wireless LAN adapter Wi-Fi**, find **IPv4 Address**. It will commonly lo
 
 Ignore addresses belonging to WSL, Docker, VPNs, or virtual Ethernet adapters. The address required by the iPhone is the physical Wi-Fi adapter's address.
 
-### 3. Start the Shove server
+### 3. Configure and start Shove
 
 From the repository:
 
 ```powershell
-cd D:\Shove-it\server
-$env:SHOVE_STORAGE_ROOT = "D:\Shove Photos"
-$env:SHOVE_EXTERNAL_STORAGE_ROOT = "E:\Shove"
-$env:SHOVE_EXTERNAL_STORAGE_NAME = "T7 Shield (E:)"
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+cd D:\Shove-it
+.\shove.cmd setup
+.\shove.cmd start
 ```
 
-`SHOVE_STORAGE_ROOT` is the always-configured local choice. The two external variables register an optional second choice; omit them when no external destination is wanted. Java approves these paths at startup, but checks their connection and writability for every status request and upload.
+`setup` asks for the local library and optional external SSD. It checks the existing Java/Maven/Node/pnpm installation, packages Java, installs the locked mobile dependencies, and stores non-secret settings in ignored `.shove-dev\config.json`. It also offers to configure the firewall. Choosing yes still requires approval in a Windows UAC prompt.
+
+`start` runs the packaged Java server and Expo/Metro in the background, records only the processes it created, waits for health, and prints the phone server and Expo project URLs. Use these commands afterward:
+
+```powershell
+.\shove.cmd status
+.\shove.cmd pair
+.\shove.cmd firewall
+.\shove.cmd stop
+```
+
+`stop` terminates only the recorded development processes and preserves configuration, SQLite history, pairing records, and originals. Logs are under `.shove-dev\logs`.
 
 ### 4. Permit only the required local connection
 
 The prototype needs an inbound rule for the Java server on TCP port `8787`. Expo development also needs Node.js on TCP port `8081`.
 
-The rules should be limited to the home subnet. The following example assumes `192.168.1.0/24`; change it to match the computer's Wi-Fi address.
-
-Run PowerShell as Administrator:
+The normal `setup` flow offers to create these rules. If setup was skipped, cancelled, or the laptop moved to a different subnet, run:
 
 ```powershell
-$homeSubnet = "192.168.1.0/24"
-$javaProgram = (Get-Command java.exe).Source
-$nodeProgram = (Get-Command node.exe).Source
-
-New-NetFirewallRule `
-  -Name "ShoveIt-Java-8787" `
-  -DisplayName "Shove-It Java server (home LAN only)" `
-  -Direction Inbound `
-  -Action Allow `
-  -Protocol TCP `
-  -LocalPort 8787 `
-  -RemoteAddress $homeSubnet `
-  -Program $javaProgram `
-  -Profile Public,Private
-
-New-NetFirewallRule `
-  -Name "ShoveIt-Expo-8081" `
-  -DisplayName "Shove-It Expo development server (home LAN only)" `
-  -Direction Inbound `
-  -Action Allow `
-  -Protocol TCP `
-  -LocalPort 8081 `
-  -RemoteAddress $homeSubnet `
-  -Program $nodeProgram `
-  -Profile Public,Private
+.\shove.cmd firewall
 ```
 
-Do not replace `$homeSubnet` with `Any`. Restricting the source network is an important part of the prototype's safety model.
+The launcher detects the active private IPv4 network, shows the subnet it will use, and opens a Windows UAC prompt. The elevated helper replaces only the named Shove rules. It constrains each rule by program, TCP port, and the detected subnet; it never opens the port to `Any` remote address.
+
+Every install or removal appends a non-secret audit to `.shove-dev\logs\firewall.log`. It records the requested action and the resulting rule name, executable path, enabled state, direction, action, profiles, protocol, local port, and remote-address scope.
+
+To inspect the result from an administrator PowerShell:
+
+```powershell
+Get-NetFirewallRule -Name "ShoveIt-Java-8787", "ShoveIt-Expo-8081" |
+  Get-NetFirewallPortFilter
+```
+
+To remove only the Shove-managed rules:
+
+```powershell
+.\shove.cmd firewall -Remove
+```
+
+This does not disable Windows Firewall, change the Wi-Fi network category, modify the router, or create internet port forwarding.
 
 ### 5. Check the server locally
 
@@ -161,31 +243,32 @@ http://192.168.1.8:8787/healthz
 
 If Safari displays a small JSON response containing `"status":"ok"`, the Wi-Fi route and Windows firewall are ready.
 
-### 7. Start the Expo development client
+### 7. Open the Expo development client
 
-This step exists only for the prototype. A customer release will ship as an installed iPhone app and will not require Node.js, pnpm, Metro, or port `8081`.
+This step exists for the source preview and the planned Expo Go friend alpha. The friend Windows package will bundle Node and Metro, so friends will not install or operate them. A later standalone iPhone release can remove Metro and port `8081` entirely.
 
-In a second PowerShell window:
+Expo/Metro was already started by `shove.cmd start`. To print its current URL again:
 
 ```powershell
-cd D:\Shove-it\apps\mobile
-pnpm.cmd install
-pnpm.cmd start --lan
+cd D:\Shove-it
+.\shove.cmd status
 ```
 
-Metro prints an address such as `exp://192.168.1.8:8081`. Install Expo Go on the iPhone, then scan Metro's QR code with the iPhone Camera app or open that address in Expo Go. Keep the PowerShell window running during the test.
+`start` opens the Shove control panel automatically. Scan the Expo Go QR shown there. Shove prefers the physical Wi-Fi adapter over WSL, Hyper-V, VPN, and tunnel adapters and supplies that same server address to a clean phone bundle. The managed processes continue running after the start command returns.
 
 The Expo toolchain uses temporary space on the Windows system drive even when the repository is on another drive. Keep at least 5 GB free on `C:` before installing packages or starting Metro; 10 GB is a healthier margin for Windows generally.
 
 ### 8. Create a pairing code
 
-From the repository root, double-click `pair.cmd`. Shove opens a small Windows window containing a fresh single-use code, a copy button, and a live countdown.
+In the control panel, select **Create pairing code**. The code, expiry countdown, storage state, paired devices, and recent transfers remain together in the same Windows view.
+
+As a diagnostic fallback, run `.\shove.cmd pair` or double-click `pair.cmd`. Shove opens a small Windows window containing a fresh single-use code, a copy button, and a live countdown.
 
 For a terminal-only display:
 
 ```powershell
 cd D:\Shove-it
-.\pair.cmd -Cli
+.\shove.cmd pair -Cli
 ```
 
 Each launch creates a new six-digit code. The code expires after two minutes and can be used only once. Code creation is accepted only from the Windows computer itself; another device on the network cannot mint its own pairing code.
@@ -194,7 +277,7 @@ Each launch creates a new six-digit code. The code expires after two minutes and
 
 In the Shove development app:
 
-1. Enter `http://<windows-ip>:8787`.
+1. A clean Expo session uses the Windows server address supplied by Metro. If the phone has a saved address from an earlier test network, replace it with the **Phone server URL** shown by `.\shove.cmd status`.
 2. Select **Find my server**.
 3. Enter the six-digit pairing code.
 4. Select **Pair iPhone**.
@@ -214,6 +297,10 @@ The phone reports **Verified on Windows** only after the server has:
 The prototype does not delete the source item from the iPhone.
 
 ## Inspecting paired devices and upload history
+
+Use `http://127.0.0.1:8787/admin/` on Windows for normal inspection and unpairing. Shove rejects this page, its QR, and its audit data over the LAN; they are visible only on the laptop. Browser mutations also require the same local origin, preventing an unrelated website from silently creating codes or revoking a phone.
+
+The commands below remain useful as diagnostic probes.
 
 Shove stores its audit database at `server\shove.db` by default. The raw device token is never stored there; the server stores only its SHA-256 hash.
 
@@ -248,14 +335,11 @@ The iPhone app also provides **Unpair this iPhone**. It calls the authenticated 
 
 ## Removing the prototype firewall rules
 
-Run PowerShell as Administrator:
-
 ```powershell
-Remove-NetFirewallRule -Name "ShoveIt-Java-8787"
-Remove-NetFirewallRule -Name "ShoveIt-Expo-8081"
+.\shove.cmd firewall -Remove
 ```
 
-Removing the rules prevents the iPhone from initiating new connections to those development services. It does not delete any transferred photos, paired-device records, or application files.
+Approve the Windows UAC prompt. The helper removes only the named Shove rules. Removing them prevents the iPhone from initiating new connections to those development services; it does not delete transferred photos, paired-device records, or application files.
 
 ## Troubleshooting
 
@@ -314,15 +398,17 @@ Update to the current repository version. The prototype uses an `AbortController
 
 A `.part` file is an incomplete transfer, not a verified library item. Do not treat it as a successful backup. The prototype removes partial files after handled failures; abrupt process termination cleanup will be hardened later.
 
-## Requirements for a customer release
+## Requirements for the friend installer
 
-The customer experience should not require PowerShell, Java, Node.js, Expo, or manual firewall commands. The Windows installer/application should:
+The friend experience must not require PowerShell, Java, Maven, Node.js, pnpm, Git, Docker, or manual firewall commands.
 
-- install a packaged Shove server runtime;
-- ask the customer before creating a narrowly scoped firewall rule;
-- explain that the rule permits local iPhone connections;
-- omit the Expo/port `8081` rule entirely;
-- detect and display reachable private-network addresses;
-- provide local discovery instead of manual IP entry;
-- allow the customer to remove network access and unpair devices in the UI;
-- preserve transferred files when the application is uninstalled unless the customer explicitly chooses otherwise.
+The Expo Go friend-alpha package should:
+
+- bundle the Java runtime and compiled Shove server;
+- bundle Node, Metro, locked mobile dependencies, and the prepared project;
+- ask before creating narrowly scoped rules for Java `8787` and Expo `8081`;
+- detect and display the reachable private-network address and QR;
+- allow network access removal and device unpairing in the UI;
+- preserve transferred files during uninstall unless the customer explicitly chooses otherwise.
+
+Once Shove has a standalone iPhone build, the Windows package can drop Node, Metro, Expo port `8081`, and the Expo Go prerequisite.

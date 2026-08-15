@@ -1,5 +1,27 @@
 # Shove
 
+## Try Shove on Windows
+
+> **Current status: working source preview, not yet a self-contained installer.** The new setup window removes terminal interaction, but the laptop must currently have Java 21, Maven, Node.js 20.19+, and pnpm 10 installed. Docker and WSL are not required.
+
+The shortest working path is:
+
+1. Put this repository in a normal Windows folder.
+2. Install **Expo Go** on the iPhone and connect both devices to the same trusted home Wi-Fi.
+3. Double-click **`Open Shove.cmd`**.
+4. Choose the Windows folder and optional external SSD in the setup window.
+5. Leave **Allow my iPhone to reach Shove** selected and personally approve the Windows permission prompt.
+6. When preparation finishes, select **Open Shove**.
+7. Scan the QR, create a pairing code, and send one photo.
+
+On later runs, double-click **`Open Shove.cmd`** again. It starts the saved configuration and opens the control panel. Use **`Shove Settings.cmd`** to change storage. The source-preview setup may take several minutes the first time while it builds the server and prepares the mobile project.
+
+Read the [easy Windows usage guide](docs/windows-usage-guide.md) for prerequisites, screenshots-to-expect, the first transfer, and simple troubleshooting.
+
+> **Friend-ready installer: next milestone.** Friends install only Shove on Windows and Expo Go on the iPhone. Shove will carry small private Java and Node/Metro runtimes, reuse or repair its own files, and leave any developer tools untouched. Maven and pnpm will not be installed for customers. See the [customer-alpha acceptance criteria](docs/customer-alpha.md).
+
+Terminal commands and APIs are retained for development and troubleshooting, but are not the intended onboarding path.
+
 Repository: **`shove-it`**
 
 Documentation: [docs index](docs/README.md) · [architecture](docs/architecture.md) · [flows and data](docs/flows-and-data.md) · [design decisions](docs/decisions/README.md) · [Windows usage guide](docs/windows-usage-guide.md)
@@ -260,6 +282,8 @@ Routes are provisional and versioned under `/api/v1`.
 | `DELETE` | `/api/v1/device` | Authenticated device revokes its own token |
 | `GET` | `/api/v1/destinations` | List approved storage choices and live availability |
 | `GET` | `/api/v1/admin/uploads` | List the complete upload audit; laptop loopback only |
+| `GET` | `/api/v1/admin/overview` | Control-panel connectivity and live destination status; laptop loopback only |
+| `GET` | `/api/v1/admin/expo-qr.svg` | QR for the current physical Wi-Fi Expo address; laptop loopback only |
 | `POST` | `/api/v1/pairing/claim` | Exchange a secret for device credentials |
 | `POST` | `/api/v1/uploads` | Create or resume an upload session |
 | `PATCH` | `/api/v1/uploads/{id}` | Append a chunk at an expected offset |
@@ -301,6 +325,8 @@ These device and upload records are persisted in SQLite. Upload ownership checks
 |-- docs/             # Architecture, decisions, verification, and usage
 |-- scripts/          # Windows prototype helpers
 |-- server/           # Java 21 / Spring Boot home server
+|-- shove.cmd         # Setup/start/status/pair/firewall/stop entry point
+|-- shove.ps1         # Managed Windows development launcher
 |-- pair.cmd          # Pairing-code popup/CLI entry point
 |-- .editorconfig
 |-- .gitignore
@@ -324,48 +350,47 @@ These device and upload records are persisted in SQLite. Upload ownership checks
 ## Getting started
 
 ```powershell
-# Java server
-cd server
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-
-# Mobile client, in another terminal
-cd apps/mobile
-pnpm install
-pnpm start
+cd D:\Shove-it
+.\shove.cmd setup
+.\shove.cmd start
 ```
 
-The server defaults to port `8787`, stores media under `server/.shove-data`, and keeps paired-device metadata in `server/shove.db`. Configure a local root plus an optional external choice, for example:
+`setup` asks for the local library and optional external SSD, checks prerequisites, packages Java, installs the locked mobile dependencies, and saves non-secret developer configuration under ignored `.shove-dev`. With explicit consent, it also asks Windows for administrator approval and creates home-subnet-only firewall rules. `start` launches Java and Expo/Metro in the background, waits for both to become healthy, injects the current physical Wi-Fi server address into the phone bundle, and opens the local control panel.
 
 ```powershell
-$env:SHOVE_STORAGE_ROOT = "D:\Shove Photos"
-$env:SHOVE_EXTERNAL_STORAGE_ROOT = "E:\Shove"
-$env:SHOVE_EXTERNAL_STORAGE_NAME = "T7 Shield (E:)"
-mvn spring-boot:run
+.\shove.cmd status
+.\shove.cmd pair
+.\shove.cmd firewall
+.\shove.cmd stop
 ```
+
+The server defaults to port `8787`, stores its SQLite audit at `server/shove.db`, and preserves configuration, audit history, and originals when stopped. The launcher never silently installs system prerequisites or opens firewall ports; firewall changes require both an affirmative setup choice and a Windows UAC approval.
+
+Firewall actions and their resulting narrow rule scopes are recorded at `.shove-dev\logs\firewall.log` for troubleshooting.
 
 ### First iPhone transfer
 
-1. Start the server with the `dev` profile and desired destination:
+1. Configure and start the development prototype:
 
    ```powershell
-   cd server
-   $env:SHOVE_STORAGE_ROOT = "E:\Phone Photos"
-   mvn spring-boot:run -Dspring-boot.run.profiles=dev
+   cd D:\Shove-it
+   .\shove.cmd setup
+   .\shove.cmd start
    ```
 
-2. Double-click `pair.cmd` in the repository root. It creates a fresh single-use code and opens a small Windows window with a live two-minute countdown and copy button. For terminal-only use:
+2. In the control panel opened by `start`, scan the Expo Go QR and select **Create pairing code**. The code is single-use and has a live two-minute countdown. The popup and terminal helper remain available as a fallback:
 
    ```powershell
-   .\pair.cmd -Cli
+   .\shove.cmd pair -Cli
    ```
 
    Pairing sessions can be created only from the laptop's loopback interface, so another device on the LAN cannot mint its own code.
 
-3. Find the laptop's private IPv4 address with `ipconfig`. In the Shove app, enter `http://<laptop-ip>:8787`, connect, and enter the six-digit code.
+3. On a clean Expo Go install, the Windows launcher supplies the current phone server URL automatically. Connect and enter the six-digit code. An address saved by an earlier prototype session remains available for reconnecting.
 
 4. Choose one photo or video. A successful response means the server flushed the `.part` file, calculated SHA-256, atomically moved it into `Shove Library/<year>/<month>`, and returned the verification receipt.
 
-Windows may ask whether Java can accept private-network connections on the first run. Permit the private network only; public-network access is not needed.
+If firewall setup was skipped or the home subnet changed, run `.\shove.cmd firewall` and approve the Windows prompt. The rules accept traffic only from the detected local subnet. Remove only Shove-managed rules with `.\shove.cmd firewall -Remove`.
 
 For the exact firewall scope, iPhone connectivity check, safe rule removal, and customer-release requirements, see the [Windows local-network usage guide](docs/windows-usage-guide.md).
 

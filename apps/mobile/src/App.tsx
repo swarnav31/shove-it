@@ -13,13 +13,14 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 
-import { normalizeBaseUrl, ServerClient, ServerInfo, StorageDestination } from './server/ServerClient';
+import { isUnauthorized, normalizeBaseUrl, ServerClient, ServerInfo, StorageDestination } from './server/ServerClient';
 import { TransferTaskSnapshot } from './transfers/TransferEngine';
 import { createTransferEngine } from './transfers/TransferEngineProvider';
 
 const TOKEN_KEY = 'shove.deviceToken';
 const SERVER_KEY = 'shove.serverUrl';
 const DESTINATION_POLL_MS = 2_000;
+const DEFAULT_SERVER_URL = process.env.EXPO_PUBLIC_SHOVE_SERVER_URL?.trim() || 'http://192.168.1.8:8787';
 
 type ConnectionState =
   | { kind: 'idle' }
@@ -30,7 +31,7 @@ type ConnectionState =
 export default function App() {
   const serverClient = useMemo(() => new ServerClient(), []);
   const transferEngine = useMemo(() => createTransferEngine(), []);
-  const [address, setAddress] = useState('http://192.168.1.8:8787');
+  const [address, setAddress] = useState(DEFAULT_SERVER_URL);
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'idle' });
   const [pairingCode, setPairingCode] = useState('');
   const [token, setToken] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export default function App() {
   const [destinationMenuOpen, setDestinationMenuOpen] = useState(false);
   const [destinationError, setDestinationError] = useState<string | null>(null);
   const [transfer, setTransfer] = useState<TransferTaskSnapshot | null>(null);
+  const [transferDestination, setTransferDestination] = useState<StorageDestination | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,7 +87,16 @@ export default function App() {
         });
         setDestinationError(null);
       } catch (error) {
-        if (active) setDestinationError(messageOf(error));
+        if (!active) return;
+        if (isUnauthorized(error)) {
+          await SecureStore.deleteItemAsync(TOKEN_KEY);
+          if (!active) return;
+          setToken((current) => (current === activeToken ? null : current));
+          setDestinationError('The laptop was reset or no longer recognizes this phone. Pair it again.');
+          setTransfer(null);
+        } else {
+          setDestinationError(messageOf(error));
+        }
       } finally {
         requestInFlight = false;
       }
@@ -132,11 +143,16 @@ export default function App() {
     setUnpairing(true);
     setTransferError(null);
     try {
-      await serverClient.unpair(address, token);
+      try {
+        await serverClient.unpair(address, token);
+      } catch (error) {
+        if (!isUnauthorized(error)) throw error;
+      }
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       setToken(null);
       setPairingCode('');
       setTransfer(null);
+      setTransferDestination(null);
       setDestinations([]);
       setSelectedDestinationId(null);
       setConnection({ kind: 'idle' });
@@ -166,8 +182,10 @@ export default function App() {
     const asset = result.assets[0];
     if (!asset) return;
     const uploadId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const uploadDestination = destinations.find((destination) => destination.id === selectedDestinationId) ?? null;
 
     try {
+      setTransferDestination(uploadDestination);
       await transferEngine.enqueue({
         uploadId,
         sourceAssetId: asset.assetId ?? uploadId,
@@ -279,9 +297,12 @@ export default function App() {
                 {selectedDestination?.displayName ?? destinationPlaceholder}
               </Text>
               {selectedDestination && (
-                <Text style={styles.destinationDetail} numberOfLines={1}>
-                  {destinationSummary(selectedDestination)}
-                </Text>
+                <>
+                  <Text style={styles.destinationSpeed}>{destinationSpeed(selectedDestination)}</Text>
+                  <Text style={styles.destinationDetail} numberOfLines={1}>
+                    {destinationSummary(selectedDestination)}
+                  </Text>
+                </>
               )}
             </View>
             <Text style={styles.chevron}>{destinationMenuOpen ? '⌃' : '⌄'}</Text>
@@ -301,6 +322,7 @@ export default function App() {
                   ]}
                 >
                   <Text style={styles.destinationName}>{destination.displayName}</Text>
+                  <Text style={styles.destinationSpeed}>{destinationSpeed(destination)}</Text>
                   <Text style={styles.destinationDetail} numberOfLines={1}>
                     {destinationSummary(destination)}
                   </Text>
@@ -322,7 +344,7 @@ export default function App() {
           {transfer && (
             <View style={styles.transferBlock}>
               <Text style={styles.transferState}>
-                {transfer.state === 'completed' ? '✓ Verified on Windows' : `${transfer.state} · ${progress}%`}
+                {transferStatus(transfer, progress, transferDestination)}
               </Text>
               <Text style={styles.transferBytes}>
                 {formatBytes(transfer.bytesSent)} / {formatBytes(transfer.bytesExpected)}
@@ -371,6 +393,26 @@ function destinationSummary(destination: StorageDestination): string {
     : `${destination.path} · ${formatBytes(destination.freeBytes)} free`;
 }
 
+function destinationSpeed(destination: StorageDestination): string {
+  return destination.id === 'local'
+    ? 'Fastest · completes directly on this Windows PC'
+    : 'Extra save step · Windows copies it here after upload';
+}
+
+function transferStatus(
+  transfer: TransferTaskSnapshot,
+  progress: number,
+  destination: StorageDestination | null,
+): string {
+  if (transfer.state === 'completed') return '✓ Verified on Windows';
+  if (transfer.state === 'running' && progress >= 100) {
+    return destination?.id === 'local'
+      ? 'Upload complete · Verifying on Windows…'
+      : `Upload complete · Saving to ${destination?.displayName ?? 'external storage'}…`;
+  }
+  return `${transfer.state} · ${progress}%`;
+}
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#07110e' },
   container: { paddingBottom: 40, paddingHorizontal: 22, paddingTop: 52 },
@@ -386,6 +428,7 @@ const styles = StyleSheet.create({
   destinationSelector: { alignItems: 'center', backgroundColor: '#091713', borderColor: '#2b4d40', borderRadius: 11, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 60, paddingHorizontal: 13, paddingVertical: 10 },
   destinationTextBlock: { flex: 1, paddingRight: 8 },
   destinationName: { color: '#f4fff9', fontSize: 15, fontWeight: '700' },
+  destinationSpeed: { color: '#65e6ad', fontSize: 11, fontWeight: '600', marginTop: 3 },
   destinationDetail: { color: '#789187', fontSize: 11, marginTop: 3 },
   chevron: { color: '#65e6ad', fontSize: 20 },
   destinationMenu: { backgroundColor: '#091713', borderColor: '#2b4d40', borderRadius: 11, borderWidth: 1, marginTop: 6, overflow: 'hidden' },

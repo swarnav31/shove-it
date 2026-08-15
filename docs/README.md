@@ -11,6 +11,7 @@ This directory is the source of truth for the prototype's architecture, operatio
 | [Flows and data](flows-and-data.md) | Pairing, upload, unpair/re-pair, integrity, and SQLite data model |
 | [Prototype verification](prototype-verification.md) | What was tested on real hardware, automated checks, and what remains unproven |
 | [Windows usage guide](windows-usage-guide.md) | Setup, firewall rationale, pairing, audit inspection, and troubleshooting |
+| [Customer alpha](customer-alpha.md) | Friend-facing installation experience and acceptance criteria |
 | [Architecture decision records](decisions/README.md) | One durable record for each major design decision |
 
 ## Status language
