@@ -120,4 +120,4 @@ Do not expand into Android, cloud accounts, automatic photo deletion, deduplicat
 
 ## Repository hygiene
 
-At this checkpoint the repository has a `.git` directory, but the working tree contents are still untracked and no prototype checkpoint has been committed. Inspect the files, then create the initial commit early in the next session so this working milestone is recoverable before reliability experiments begin.
+The initial prototype checkpoint is committed on `main` and pushed to the private repository [swarnav31/shove-it](https://github.com/swarnav31/shove-it). Local `main` tracks `origin/main`. Preserve this working milestone before reliability experiments by making focused commits for subsequent changes.
