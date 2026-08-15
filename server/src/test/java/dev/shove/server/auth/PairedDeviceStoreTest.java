@@ -19,9 +19,10 @@ class PairedDeviceStoreTest {
             Instant reportedAt = Instant.parse("2026-08-15T12:00:00Z");
             store.add("device-1", "Test phone", "token-hash", pairedAt);
 
-            assertThat(store.updateStatus("device-1", "android", 40, 100, reportedAt)).isTrue();
+            assertThat(store.updateStatus("device-1", "Pixel 2", "android", 40, 100, reportedAt)).isTrue();
 
             var device = store.list().getFirst();
+            assertThat(device.displayName()).isEqualTo("Pixel 2");
             assertThat(device.platform()).isEqualTo("android");
             assertThat(device.storageAvailableBytes()).isEqualTo(40);
             assertThat(device.storageTotalBytes()).isEqualTo(100);

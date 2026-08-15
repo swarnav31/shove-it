@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Device from 'expo-device';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
@@ -25,6 +26,7 @@ const SERVER_KEY = 'shove.serverUrl';
 const DESTINATION_POLL_MS = 2_000;
 const DEVICE_STATUS_INTERVAL_MS = 10_000;
 const DEFAULT_SERVER_URL = process.env.EXPO_PUBLIC_SHOVE_SERVER_URL?.trim() || 'http://192.168.1.8:8787';
+const DEVICE_NAME = Device.modelName?.trim() || 'Mobile device';
 
 type ConnectionState =
   | { kind: 'idle' }
@@ -35,6 +37,13 @@ type ConnectionState =
 type PhoneStorage = {
   availableBytes: number;
   totalBytes: number;
+};
+
+type TransferQueueItem = {
+  uploadId: string;
+  fileName: string;
+  destination: StorageDestination;
+  snapshot: TransferTaskSnapshot;
 };
 
 export default function App() {
@@ -50,8 +59,8 @@ export default function App() {
   const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
   const [destinationMenuOpen, setDestinationMenuOpen] = useState(false);
   const [destinationError, setDestinationError] = useState<string | null>(null);
-  const [transfer, setTransfer] = useState<TransferTaskSnapshot | null>(null);
-  const [transferDestination, setTransferDestination] = useState<StorageDestination | null>(null);
+  const [transferQueue, setTransferQueue] = useState<TransferQueueItem[]>([]);
+  const [batchRunning, setBatchRunning] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [phoneStorage, setPhoneStorage] = useState<PhoneStorage | null>(null);
 
@@ -62,7 +71,11 @@ export default function App() {
         if (savedServer) setAddress(savedServer);
       },
     );
-    const subscription = transferEngine.subscribe(setTransfer);
+    const subscription = transferEngine.subscribe((snapshot) => {
+      setTransferQueue((current) => current.map((item) => (
+        item.uploadId === snapshot.uploadId ? { ...item, snapshot } : item
+      )));
+    });
     return () => subscription.remove();
   }, [transferEngine]);
 
@@ -79,6 +92,7 @@ export default function App() {
         setPhoneStorage(storage);
         if (token && storage) {
           await serverClient.updateDeviceStatus(address, token, {
+            deviceName: DEVICE_NAME,
             platform: Platform.OS,
             availableBytes: storage.availableBytes,
             totalBytes: storage.totalBytes,
@@ -142,7 +156,7 @@ export default function App() {
           if (!active) return;
           setToken((current) => (current === activeToken ? null : current));
           setDestinationError('The laptop was reset or no longer recognizes this phone. Pair it again.');
-          setTransfer(null);
+          setTransferQueue([]);
         } else {
           setDestinationError(messageOf(error));
         }
@@ -175,7 +189,7 @@ export default function App() {
     setTransferError(null);
     try {
       const normalizedAddress = normalizeBaseUrl(address);
-      const device = await serverClient.pair(normalizedAddress, pairingCode, 'Mobile device');
+      const device = await serverClient.pair(normalizedAddress, pairingCode, DEVICE_NAME);
       await SecureStore.setItemAsync(TOKEN_KEY, device.token);
       await SecureStore.setItemAsync(SERVER_KEY, normalizedAddress);
       setAddress(normalizedAddress);
@@ -200,8 +214,7 @@ export default function App() {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       setToken(null);
       setPairingCode('');
-      setTransfer(null);
-      setTransferDestination(null);
+      setTransferQueue([]);
       setDestinations([]);
       setSelectedDestinationId(null);
       setConnection({ kind: 'idle' });
@@ -213,7 +226,7 @@ export default function App() {
   }
 
   async function chooseAndUpload() {
-    if (!token || !selectedDestinationId) return;
+    if (!token || !selectedDestinationId || batchRunning) return;
     setTransferError(null);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
@@ -223,39 +236,107 @@ export default function App() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsEditing: false,
+      allowsMultipleSelection: true,
       mediaTypes: ['images', 'videos'],
+      orderedSelection: true,
+      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Current,
       quality: 1,
+      selectionLimit: 0,
     });
     if (result.canceled) return;
 
-    const asset = result.assets[0];
-    if (!asset) return;
-    const uploadId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const uploadDestination = destinations.find((destination) => destination.id === selectedDestinationId) ?? null;
+    if (!uploadDestination || !result.assets.length) return;
+
+    const batchId = Date.now();
+    const prepared = result.assets.map((asset, index) => {
+      const uploadId = `${batchId}-${index}-${Math.random().toString(16).slice(2)}`;
+      const fileName = asset.fileName ?? `${uploadId}.bin`;
+      return {
+        asset,
+        fileName,
+        uploadId,
+        queueItem: {
+          uploadId,
+          fileName,
+          destination: uploadDestination,
+          snapshot: queuedSnapshot(uploadId, asset.fileSize ?? 0),
+        } satisfies TransferQueueItem,
+      };
+    });
+
+    setTransferQueue(prepared.map((item) => item.queueItem));
+    setBatchRunning(true);
 
     try {
-      setTransferDestination(uploadDestination);
-      await transferEngine.enqueue({
-        uploadId,
-        sourceAssetId: asset.assetId ?? uploadId,
-        stagedFileUri: asset.uri,
-        destinationUrl: `${normalizeBaseUrl(address)}/api/v1/upload`,
-        byteSize: asset.fileSize ?? 0,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': asset.mimeType ?? 'application/octet-stream',
-          'X-Shove-Destination': selectedDestinationId,
-          'X-Shove-Filename': asset.fileName ?? `${uploadId}.bin`,
-        },
-      });
+      for (const [index, item] of prepared.entries()) {
+        const liveDestinations = await serverClient.getDestinations(address, token);
+        const destinationStillAvailable = liveDestinations.some(
+          (destination) => destination.id === selectedDestinationId && destination.available,
+        );
+        if (!destinationStillAvailable) {
+          const stoppedAt = new Date().toISOString();
+          const remainingIds = new Set(prepared.slice(index).map((remaining) => remaining.uploadId));
+          setTransferQueue((current) => current.map((queued) => (
+            remainingIds.has(queued.uploadId)
+              ? {
+                  ...queued,
+                  snapshot: {
+                    ...queued.snapshot,
+                    state: 'failed',
+                    errorCode: 'destination-unavailable',
+                    updatedAt: stoppedAt,
+                  },
+                }
+              : queued
+          )));
+          setTransferError(
+            `${uploadDestination.displayName} disconnected. ${prepared.length - index} remaining ${prepared.length - index === 1 ? 'item was' : 'items were'} not sent.`,
+          );
+          break;
+        }
+
+        try {
+          await transferEngine.enqueue({
+            uploadId: item.uploadId,
+            sourceAssetId: item.asset.assetId ?? item.uploadId,
+            stagedFileUri: item.asset.uri,
+            destinationUrl: `${normalizeBaseUrl(address)}/api/v1/upload`,
+            byteSize: item.asset.fileSize ?? 0,
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': item.asset.mimeType ?? 'application/octet-stream',
+              'X-Shove-Destination': selectedDestinationId,
+              'X-Shove-Filename': item.fileName,
+            },
+          });
+        } catch {
+          // The engine emitted a failed snapshot. Continue with the next original.
+        }
+      }
     } catch (error) {
+      const failedAt = new Date().toISOString();
+      setTransferQueue((current) => current.map((item) => (
+        item.snapshot.state === 'queued'
+          ? {
+              ...item,
+              snapshot: {
+                ...item.snapshot,
+                state: 'failed',
+                errorCode: 'batch-interrupted',
+                updatedAt: failedAt,
+              },
+            }
+          : item
+      )));
       setTransferError(messageOf(error));
+    } finally {
+      setBatchRunning(false);
     }
   }
 
-  const progress = transfer && transfer.bytesExpected > 0
-    ? Math.round((transfer.bytesSent / transfer.bytesExpected) * 100)
-    : 0;
+  const verifiedCount = transferQueue.filter((item) => item.snapshot.state === 'completed').length;
+  const failedCount = transferQueue.filter((item) => item.snapshot.state === 'failed').length;
   const availableDestinations = destinations.filter((destination) => destination.available);
   const selectedDestination = availableDestinations.find(
     (destination) => destination.id === selectedDestinationId,
@@ -272,8 +353,8 @@ export default function App() {
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.eyebrow}>SHOVE-IT PROTOTYPE</Text>
-        <Text style={styles.title}>Shove one original home.</Text>
-        <Text style={styles.subtitle}>Phone → local Wi-Fi → Windows storage. Nothing else yet.</Text>
+        <Text style={styles.title}>Shove your originals home.</Text>
+        <Text style={styles.subtitle}>Choose one or many. Phone → local Wi-Fi → Windows storage.</Text>
 
         <View style={styles.phoneStorageStrip}>
           <View>
@@ -312,7 +393,7 @@ export default function App() {
             <>
               <Text style={styles.success}>● This phone is paired</Text>
               <ActionButton
-                disabled={unpairing}
+                disabled={unpairing || batchRunning}
                 loading={unpairing}
                 onPress={unpair}
                 text="Unpair this phone"
@@ -346,11 +427,11 @@ export default function App() {
             <Text style={styles.liveLabel}>● LIVE · 2s</Text>
           </View>
           <TouchableOpacity
-            disabled={!token || availableDestinations.length === 0}
+            disabled={!token || availableDestinations.length === 0 || batchRunning}
             onPress={() => setDestinationMenuOpen((open) => !open)}
             style={[
               styles.destinationSelector,
-              (!token || availableDestinations.length === 0) && styles.buttonDisabled,
+              (!token || availableDestinations.length === 0 || batchRunning) && styles.buttonDisabled,
             ]}
           >
             <View style={styles.destinationTextBlock}>
@@ -398,18 +479,46 @@ export default function App() {
           )}
           {destinationError && <Text style={styles.error}>{destinationError}</Text>}
           <ActionButton
-            disabled={!token || !selectedDestination || transfer?.state === 'running'}
+            disabled={!token || !selectedDestination || batchRunning}
+            loading={batchRunning}
             onPress={chooseAndUpload}
-            text="Choose photo or video"
+            text="Choose photos or videos"
           />
-          {transfer && (
-            <View style={styles.transferBlock}>
-              <Text style={styles.transferState}>
-                {transferStatus(transfer, progress, transferDestination)}
-              </Text>
-              <Text style={styles.transferBytes}>
-                {formatBytes(transfer.bytesSent)} / {formatBytes(transfer.bytesExpected)}
-              </Text>
+          {transferQueue.length > 0 && (
+            <View style={styles.queueBlock}>
+              <View style={styles.queueHeader}>
+                <Text style={styles.queueTitle}>
+                  {batchRunning ? 'Sending batch' : failedCount ? 'Batch finished with issues' : 'Batch verified'}
+                </Text>
+                <Text style={styles.queueSummary}>
+                  {verifiedCount} verified{failedCount ? ` · ${failedCount} failed` : ''} · {transferQueue.length} total
+                </Text>
+              </View>
+              {transferQueue.map((item, index) => {
+                const progress = transferProgress(item.snapshot);
+                return (
+                  <View key={item.uploadId} style={styles.queueItem}>
+                    <View style={styles.queueItemHeader}>
+                      <Text numberOfLines={1} style={styles.queueFileName}>{index + 1}. {item.fileName}</Text>
+                      <Text style={[
+                        styles.queueState,
+                        item.snapshot.state === 'completed' && styles.queueStateVerified,
+                        item.snapshot.state === 'failed' && styles.queueStateFailed,
+                        item.snapshot.state === 'running' && styles.queueStateRunning,
+                      ]}>{queueStateLabel(item.snapshot.state)}</Text>
+                    </View>
+                    <Text style={styles.transferState}>
+                      {transferStatus(item.snapshot, progress, item.destination)}
+                    </Text>
+                    <Text style={styles.transferBytes}>
+                      {formatBytes(item.snapshot.bytesSent)} / {formatBytes(item.snapshot.bytesExpected)}
+                    </Text>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           )}
           {transferError && <Text style={styles.error}>{transferError}</Text>}
@@ -446,6 +555,35 @@ function formatBytes(value: number): string {
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
   return `${(value / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
+}
+
+function queuedSnapshot(uploadId: string, bytesExpected: number): TransferTaskSnapshot {
+  return {
+    uploadId,
+    nativeTaskId: `queued:${uploadId}`,
+    state: 'queued',
+    bytesSent: 0,
+    bytesExpected,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function transferProgress(transfer: TransferTaskSnapshot): number {
+  if (transfer.state === 'completed') return 100;
+  if (transfer.bytesExpected <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((transfer.bytesSent / transfer.bytesExpected) * 100)));
+}
+
+function queueStateLabel(state: TransferTaskSnapshot['state']): string {
+  switch (state) {
+    case 'queued': return 'Queued';
+    case 'running': return 'Running';
+    case 'verifying': return 'Verifying';
+    case 'completed': return 'Verified';
+    case 'failed': return 'Failed';
+    case 'cancelled': return 'Cancelled';
+    case 'waiting-for-network': return 'Waiting';
+  }
 }
 
 async function readPhoneStorage(): Promise<PhoneStorage | null> {
@@ -485,12 +623,21 @@ function transferStatus(
   destination: StorageDestination | null,
 ): string {
   if (transfer.state === 'completed') return '✓ Verified on Windows';
+  if (transfer.state === 'queued') return 'Waiting for the previous item';
+  if (transfer.state === 'failed') {
+    if (transfer.errorCode === 'destination-unavailable') return 'Not sent · destination disconnected';
+    if (transfer.errorCode === 'batch-interrupted') return 'Not sent · batch stopped';
+    return 'Upload failed · continuing with the next item';
+  }
+  if (transfer.state === 'cancelled') return 'Cancelled';
+  if (transfer.state === 'waiting-for-network') return 'Waiting for Wi-Fi';
+  if (transfer.state === 'verifying') return 'Upload complete · Verifying on Windows…';
   if (transfer.state === 'running' && progress >= 100) {
     return destination?.id === 'local'
       ? 'Upload complete · Verifying on Windows…'
       : `Upload complete · Saving to ${destination?.displayName ?? 'external storage'}…`;
   }
-  return `${transfer.state} · ${progress}%`;
+  return `Uploading · ${progress}%`;
 }
 
 const styles = StyleSheet.create({
@@ -524,7 +671,19 @@ const styles = StyleSheet.create({
   buttonText: { color: '#08130f', fontSize: 15, fontWeight: '700' },
   success: { color: '#65e6ad', fontSize: 13, marginTop: 12 },
   error: { color: '#ff9a9a', fontSize: 13, lineHeight: 18, marginTop: 12 },
-  transferBlock: { borderTopColor: '#234336', borderTopWidth: 1, marginTop: 15, paddingTop: 13 },
+  queueBlock: { borderTopColor: '#234336', borderTopWidth: 1, marginTop: 15, paddingTop: 13 },
+  queueHeader: { marginBottom: 4 },
+  queueTitle: { color: '#f4fff9', fontSize: 16, fontWeight: '700' },
+  queueSummary: { color: '#9bb0a7', fontSize: 12, marginTop: 4 },
+  queueItem: { borderTopColor: '#1d3b30', borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
+  queueItemHeader: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
+  queueFileName: { color: '#f4fff9', flex: 1, fontSize: 13, fontWeight: '700' },
+  queueState: { color: '#9bb0a7', fontSize: 11, fontWeight: '700' },
+  queueStateVerified: { color: '#65e6ad' },
+  queueStateFailed: { color: '#ff9a9a' },
+  queueStateRunning: { color: '#f8c86b' },
   transferState: { color: '#e5fff2', fontSize: 15, fontWeight: '600' },
   transferBytes: { color: '#789187', fontSize: 12, marginTop: 5 },
+  progressTrack: { backgroundColor: '#091713', borderRadius: 999, height: 5, marginTop: 8, overflow: 'hidden' },
+  progressFill: { backgroundColor: '#65e6ad', borderRadius: 999, height: '100%' },
 });

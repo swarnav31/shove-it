@@ -91,6 +91,40 @@
         <div id="storage-list" class="storage-list" aria-live="polite"></div>
       </section>
 
+      <section class="card performance-card" aria-labelledby="performance-title">
+        <div class="section-heading">
+          <div><p class="kicker">RELIABILITY LAB</p><h2 id="performance-title">Transfer performance</h2></div>
+          <span id="performance-sample-note" class="live-note"><i></i>Waiting for a measured transfer</span>
+        </div>
+        <p class="performance-intro muted">Measured on this PC from the first received byte through hashing, durable storage, final promotion, and audit.</p>
+        <div id="performance-empty" class="performance-empty">Send a new file to start building a performance history. Earlier uploads remain safe but do not have phase timings.</div>
+        <div id="performance-content" hidden>
+          <div class="performance-metrics">
+            <div class="metric"><span>Measured transfers</span><strong id="performance-samples">0</strong></div>
+            <div class="metric"><span>Verified</span><strong id="performance-success">0%</strong></div>
+            <div class="metric"><span>Typical total</span><strong id="performance-p50">—</strong></div>
+            <div class="metric"><span>Slow-end total</span><strong id="performance-p95">—</strong><small>95th percentile</small></div>
+          </div>
+          <div class="performance-layout">
+            <div class="performance-pane">
+              <h3>Destination comparison</h3>
+              <p class="muted">Separates Wi-Fi receive speed from the final drive save.</p>
+              <div id="destination-performance" class="performance-list"></div>
+            </div>
+            <div class="performance-pane">
+              <h3>Phase profile</h3>
+              <p class="muted">Median and slow-end time for each server phase.</p>
+              <div id="phase-performance" class="performance-list"></div>
+            </div>
+          </div>
+          <div class="recent-performance">
+            <h3>Recent transfer breakdown</h3>
+            <div class="phase-legend"><span class="receive">Receive + hash</span><span class="drive">Drive save</span><span class="promote">Promote</span><span class="audit">Audit</span><span class="other">Other</span></div>
+            <div id="recent-performance" class="waterfall-list"></div>
+          </div>
+        </div>
+      </section>
+
       <div class="data-grid">
         <section class="card">
           <div class="section-heading">
@@ -98,6 +132,11 @@
             <span id="device-count" class="count-badge">0</span>
           </div>
           <div id="device-list" class="record-list empty-state">No phones paired yet.</div>
+          <button id="device-history-toggle" class="text-button history-toggle" type="button" hidden>Previously paired</button>
+          <div id="device-history" class="device-history" hidden>
+            <p class="history-heading">Previously paired</p>
+            <div id="device-history-list" class="record-list"></div>
+          </div>
         </section>
 
         <section class="card">

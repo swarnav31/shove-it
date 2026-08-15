@@ -21,6 +21,7 @@ export type StorageDestination = {
 };
 
 export type DeviceStatus = {
+  deviceName: string;
   platform: string;
   availableBytes: number;
   totalBytes: number;

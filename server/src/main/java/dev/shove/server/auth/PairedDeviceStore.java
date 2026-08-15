@@ -62,6 +62,7 @@ public class PairedDeviceStore {
 
     public boolean updateStatus(
             String deviceId,
+            String displayName,
             String platform,
             long storageAvailableBytes,
             long storageTotalBytes,
@@ -69,13 +70,15 @@ public class PairedDeviceStore {
         return jdbc.update(
                 """
                 UPDATE paired_devices
-                SET platform = ?,
+                SET display_name = COALESCE(?, display_name),
+                    platform = ?,
                     storage_available_bytes = ?,
                     storage_total_bytes = ?,
                     storage_reported_at = ?,
                     last_seen_at = ?
                 WHERE id = ? AND revoked_at IS NULL
                 """,
+                displayName,
                 platform,
                 storageAvailableBytes,
                 storageTotalBytes,

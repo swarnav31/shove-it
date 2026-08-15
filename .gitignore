@@ -21,6 +21,7 @@ web-build/
 *.tsbuildinfo
 
 server/target/
+core/target/
 *.class
 
 .shove/
