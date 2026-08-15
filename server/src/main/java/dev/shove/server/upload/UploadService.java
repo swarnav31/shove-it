@@ -23,6 +23,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import dev.shove.core.observability.UploadObserver;
+import dev.shove.core.observability.UploadObservers;
 import dev.shove.server.storage.StorageDestinationRegistry;
 import dev.shove.server.storage.StorageLayout;
 
@@ -35,16 +37,31 @@ public final class UploadService {
 
     private final StorageDestinationRegistry destinations;
     private final UploadStore uploadStore;
+    private final UploadObserver uploadObserver;
     private final Clock clock;
 
     @Autowired
-    public UploadService(StorageDestinationRegistry destinations, UploadStore uploadStore) {
-        this(destinations, uploadStore, Clock.systemUTC());
+    public UploadService(
+            StorageDestinationRegistry destinations,
+            UploadStore uploadStore,
+            UploadObserver uploadObserver) {
+        this(destinations, uploadStore, uploadObserver, Clock.systemUTC());
     }
 
     UploadService(StorageDestinationRegistry destinations, UploadStore uploadStore, Clock clock) {
+        this(destinations, uploadStore, UploadObservers.noOp(), clock);
+    }
+
+    UploadService(
+            StorageDestinationRegistry destinations,
+            UploadStore uploadStore,
+            UploadObserver uploadObserver,
+            Clock clock) {
         this.destinations = destinations;
         this.uploadStore = uploadStore;
+        this.uploadObserver = UploadObservers.failSafe(
+                uploadObserver,
+                failure -> LOGGER.warn("Upload observer failed; transfer execution continues", failure));
         this.clock = clock;
     }
 
@@ -54,6 +71,7 @@ public final class UploadService {
             String suppliedFilename,
             long expectedLength,
             InputStream input) throws IOException {
+        long serverStartedNanos = System.nanoTime();
         var destinationConfig = destinations.resolveAvailable(destinationId);
         StorageLayout storage = destinationConfig.layout();
         String uploadId = UUID.randomUUID().toString();
@@ -75,43 +93,135 @@ public final class UploadService {
                 clock.instant());
 
         DigestWriteResult result;
-        try {
-            result = writeAndHash(input, receivePart);
+        Long receiveHashMs = null;
+        Long externalCopyMs = stagesLocally ? null : 0L;
+        Long promoteMs = null;
+        Long auditMs = null;
+        String currentPhase = "receive_hash_force";
+        long phaseStartedNanos = System.nanoTime();
+        try (var observation = uploadObserver.start(destinationConfig.id(), expectedLength)) {
+          try {
+            try (var ignored = observation.phase("receive_hash_force")) {
+                result = writeAndHash(input, receivePart);
+            }
+            receiveHashMs = elapsedMillis(phaseStartedNanos);
+            currentPhase = "length_validation";
             if (expectedLength >= 0 && result.bytes() != expectedLength) {
                 throw new IOException(
                         "Upload length mismatch: received %d bytes, expected %d"
                                 .formatted(result.bytes(), expectedLength));
             }
 
+            uploadStore.markPhase(
+                    uploadId,
+                    stagesLocally ? "copying" : "promoting",
+                    result.bytes(),
+                    result.sha256(),
+                    UploadPhaseTimings.inProgress(receiveHashMs, externalCopyMs, promoteMs),
+                    clock.instant());
+
             if (stagesLocally) {
-                copyAndForce(receivePart, destinationPart);
+                currentPhase = "external_copy_force";
+                phaseStartedNanos = System.nanoTime();
+                try (var ignored = observation.phase("external_copy_force")) {
+                    copyAndForce(receivePart, destinationPart);
+                }
+                externalCopyMs = elapsedMillis(phaseStartedNanos);
+                uploadStore.markPhase(
+                        uploadId,
+                        "promoting",
+                        result.bytes(),
+                        result.sha256(),
+                        UploadPhaseTimings.inProgress(receiveHashMs, externalCopyMs, promoteMs),
+                        clock.instant());
             }
 
+            currentPhase = "atomic_promote";
+            phaseStartedNanos = System.nanoTime();
             LocalDate today = LocalDate.now(clock);
             Path destinationDirectory = storage.libraryDirectory(today);
             Path destination = destinationDirectory.resolve(uploadId + "_" + safeFilename);
-            promoteAtomically(destinationPart, destination);
+            try (var ignored = observation.phase("atomic_promote")) {
+                promoteAtomically(destinationPart, destination);
+            }
+            promoteMs = elapsedMillis(phaseStartedNanos);
 
             String storedRelativePath = storage.root()
                     .relativize(destination)
                     .toString()
                     .replace('\\', '/');
-            uploadStore.markVerified(uploadId, storedRelativePath, result.bytes(), result.sha256(), clock.instant());
+            currentPhase = "audit_commit";
+            phaseStartedNanos = System.nanoTime();
+            try (var ignored = observation.phase("audit_commit")) {
+                uploadStore.markVerified(
+                        uploadId,
+                        storedRelativePath,
+                        result.bytes(),
+                        result.sha256(),
+                        UploadPhaseTimings.inProgress(receiveHashMs, externalCopyMs, promoteMs),
+                        clock.instant());
+            }
+            auditMs = elapsedMillis(phaseStartedNanos);
+            long totalMs = elapsedMillis(serverStartedNanos);
+            UploadPhaseTimings timings = UploadPhaseTimings.completed(
+                    receiveHashMs,
+                    externalCopyMs,
+                    promoteMs,
+                    auditMs,
+                    totalMs);
+            try {
+                uploadStore.updateFinalTimings(uploadId, timings);
+            } catch (RuntimeException instrumentationException) {
+                LOGGER.warn("Upload {} verified, but its final timing annotation failed", uploadId, instrumentationException);
+            }
             if (stagesLocally) {
                 deleteStagingBestEffort(receivePart, uploadId);
             }
-            return uploadStore.findById(uploadId).orElseThrow();
+            UploadReceipt receipt = uploadStore.findById(uploadId).orElseThrow();
+            observation.completed(receipt.bytes(), timings.totalMs());
+            logPerformance(receipt);
+            return receipt;
         } catch (IOException | RuntimeException exception) {
+            long failedPhaseMs = elapsedMillis(phaseStartedNanos);
+            if ("receive_hash_force".equals(currentPhase) && receiveHashMs == null) {
+                receiveHashMs = failedPhaseMs;
+            } else if ("external_copy_force".equals(currentPhase) && externalCopyMs == null) {
+                externalCopyMs = failedPhaseMs;
+            } else if ("atomic_promote".equals(currentPhase) && promoteMs == null) {
+                promoteMs = failedPhaseMs;
+            } else if ("audit_commit".equals(currentPhase) && auditMs == null) {
+                auditMs = failedPhaseMs;
+            }
+            UploadPhaseTimings timings = UploadPhaseTimings.failed(
+                    receiveHashMs,
+                    externalCopyMs,
+                    promoteMs,
+                    auditMs,
+                    elapsedMillis(serverStartedNanos),
+                    currentPhase);
             deleteAfterFailure(destinationPart, exception);
             if (!receivePart.equals(destinationPart)) {
                 deleteAfterFailure(receivePart, exception);
             }
             try {
-                uploadStore.markFailed(uploadId, exception.getMessage(), clock.instant());
+                uploadStore.markFailed(uploadId, exception.getMessage(), timings, clock.instant());
             } catch (RuntimeException persistenceException) {
                 exception.addSuppressed(persistenceException);
             }
+            LOGGER.warn(
+                    "upload_performance status=failed uploadId={} destination={} bytesExpected={} phase={} totalMs={} receiveHashMs={} externalCopyMs={} promoteMs={} auditMs={}",
+                    uploadId,
+                    destinationConfig.id(),
+                    expectedLength,
+                    timings.failurePhase(),
+                    timings.totalMs(),
+                    timings.receiveHashMs(),
+                    timings.externalCopyMs(),
+                    timings.promoteMs(),
+                    timings.auditMs());
+            observation.failed(exception, currentPhase, timings.totalMs());
             throw exception;
+          }
         }
     }
 
@@ -195,6 +305,24 @@ public final class UploadService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("JVM does not provide SHA-256", exception);
         }
+    }
+
+    private static long elapsedMillis(long startedNanos) {
+        return Math.max(0L, Math.round((System.nanoTime() - startedNanos) / 1_000_000.0));
+    }
+
+    private static void logPerformance(UploadReceipt receipt) {
+        UploadPhaseTimings timings = receipt.timings();
+        LOGGER.info(
+                "upload_performance status=verified uploadId={} destination={} bytes={} totalMs={} receiveHashMs={} externalCopyMs={} promoteMs={} auditMs={}",
+                receipt.uploadId(),
+                receipt.destinationId(),
+                receipt.bytes(),
+                timings.totalMs(),
+                timings.receiveHashMs(),
+                timings.externalCopyMs(),
+                timings.promoteMs(),
+                timings.auditMs());
     }
 
     static String safeFilename(String suppliedFilename) {

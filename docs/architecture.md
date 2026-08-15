@@ -33,6 +33,17 @@ There is no Shove cloud service in this path. Metro is required only because the
 
 ## Components
 
+### Repository and module boundary
+
+```mermaid
+flowchart LR
+    PRO["Private Shove Pro app<br/>real extension implementations"] --> SERVER["Community server<br/>complete runnable product"]
+    SERVER --> CORE["shove-core<br/>framework-neutral contracts + no-op defaults"]
+    PRO -. "replaces no-op at composition" .-> CORE
+```
+
+The root Maven build now publishes `shove-core` and `shove-it-server`. The server also produces an `-exec.jar` for the Community launcher and a normal dependency JAR for Pro composition. Core has no Spring Boot or OpenTelemetry dependency. Every optional Pro capability uses a Core-owned contract with a no-op default, and observer calls are fail-safe so an extension failure cannot fail a transfer.
+
 ### Mobile application
 
 Location: `apps/mobile`
@@ -156,6 +167,7 @@ Current HTTP traffic is not encrypted. The prototype is safe only for a trusted 
 | `GET` | `/api/v1/devices` | Loopback only; list paired devices |
 | `DELETE` | `/api/v1/devices/{id}` | Loopback only; revoke a device |
 | `GET` | `/api/v1/admin/uploads` | Loopback only; complete upload audit |
+| `GET` | `/api/v1/admin/performance` | Loopback only; persisted phase percentiles and recent waterfalls |
 | `GET` | `/api/v1/admin/overview` | Loopback only; control-panel readiness and destinations |
 | `GET` | `/api/v1/admin/expo-qr.svg` | Loopback only; locally generated Expo Go QR |
 | `POST` | `/api/v1/dev/uploads` | Development profile only; deliberate authentication bypass for plumbing tests |

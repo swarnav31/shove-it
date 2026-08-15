@@ -28,7 +28,7 @@ Terminal commands and APIs are retained for development and troubleshooting, but
 
 Repository: **`shove-it`**
 
-Documentation: [docs index](docs/README.md) · [architecture](docs/architecture.md) · [flows and data](docs/flows-and-data.md) · [design decisions](docs/decisions/README.md) · [Windows usage guide](docs/windows-usage-guide.md)
+Documentation: [docs index](docs/README.md) · [architecture](docs/architecture.md) · [flows and data](docs/flows-and-data.md) · [transfer performance](docs/performance.md) · [design decisions](docs/decisions/README.md) · [Windows usage guide](docs/windows-usage-guide.md)
 
 > Shove your photos home.
 
@@ -181,6 +181,10 @@ Phone reports verified; Windows audit records the result
 ```
 
 ## Components
+
+### `core`
+
+The framework-neutral `shove-core` Java artifact defines optional extension contracts and their safe no-op defaults. The Community server is complete without Pro code. The private Pro distribution depends on Core and the reusable Community server JAR, then replaces selected no-op implementations at application-composition time. Core catches ordinary observer failures so an optional extension cannot fail a valid transfer.
 
 ### `apps/mobile`
 
@@ -430,3 +434,7 @@ The first milestone succeeds when a full-resolution photo and a large video sele
 - Remote access design
 - Windows/macOS packaging and updates
 - Open-source boundary and commercial feature model
+
+## License
+
+Copyright 2026 Swarnava Choudhury. Licensed under the [Apache License 2.0](LICENSE).

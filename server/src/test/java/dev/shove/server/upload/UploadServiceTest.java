@@ -46,6 +46,12 @@ class UploadServiceTest {
         assertThat(receipt.sha256())
                 .isEqualTo("cee8d254332dd9c6de6f63d7ac9946d9e016d157e3f29731eb5021a35d2aca0f");
         assertThat(receipt.storedRelativePath()).startsWith("Shove Library/2026/08/");
+        assertThat(receipt.timings().receiveHashMs()).isNotNull().isGreaterThanOrEqualTo(0);
+        assertThat(receipt.timings().externalCopyMs()).isZero();
+        assertThat(receipt.timings().promoteMs()).isNotNull().isGreaterThanOrEqualTo(0);
+        assertThat(receipt.timings().auditMs()).isNotNull().isGreaterThanOrEqualTo(0);
+        assertThat(receipt.timings().totalMs()).isNotNull().isGreaterThanOrEqualTo(0);
+        assertThat(receipt.timings().failurePhase()).isNull();
         assertThat(Files.readAllBytes(temporaryDirectory.resolve(receipt.storedRelativePath())))
                 .isEqualTo(source);
         assertThat(temporaryDirectory.resolve(".shove/incoming")).isEmptyDirectory();
@@ -69,6 +75,8 @@ class UploadServiceTest {
                     assertThat(receipt.state()).isEqualTo("failed");
                     assertThat(receipt.verified()).isFalse();
                     assertThat(receipt.failureMessage()).contains("length mismatch");
+                    assertThat(receipt.timings().failurePhase()).isEqualTo("length_validation");
+                    assertThat(receipt.timings().totalMs()).isNotNull().isGreaterThanOrEqualTo(0);
                 });
     }
 
@@ -86,6 +94,7 @@ class UploadServiceTest {
         assertThat(receipt.verified()).isTrue();
         assertThat(receipt.destinationId()).isEqualTo("external");
         assertThat(receipt.storageRoot()).isEqualTo(external.toAbsolutePath().toString());
+        assertThat(receipt.timings().externalCopyMs()).isNotNull().isGreaterThanOrEqualTo(0);
         assertThat(Files.readAllBytes(external.resolve(receipt.storedRelativePath())))
                 .isEqualTo(source);
         assertThat(local.resolve(".shove/incoming")).isEmptyDirectory();

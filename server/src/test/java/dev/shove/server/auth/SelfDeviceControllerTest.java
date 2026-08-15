@@ -31,14 +31,14 @@ class SelfDeviceControllerTest {
     @Test
     void storesAnAuthenticatedValidStatusUsingTheServerClock() {
         when(authenticator.authenticate(request)).thenReturn(AuthenticationResult.authenticated("device-1"));
-        when(devices.updateStatus("device-1", "ios", 40, 100, NOW)).thenReturn(true);
+        when(devices.updateStatus("device-1", "iPhone 13 mini", "ios", 40, 100, NOW)).thenReturn(true);
 
         var response = controller.updateCurrentDeviceStatus(
-                new SelfDeviceController.DeviceStatusRequest(" iOS ", 40, 100),
+                new SelfDeviceController.DeviceStatusRequest(" iPhone 13 mini ", " iOS ", 40, 100),
                 request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(204);
-        verify(devices).updateStatus("device-1", "ios", 40, 100, NOW);
+        verify(devices).updateStatus("device-1", "iPhone 13 mini", "ios", 40, 100, NOW);
     }
 
     @Test
@@ -46,11 +46,11 @@ class SelfDeviceControllerTest {
         when(authenticator.authenticate(request)).thenReturn(AuthenticationResult.authenticated("device-1"));
 
         var response = controller.updateCurrentDeviceStatus(
-                new SelfDeviceController.DeviceStatusRequest("ios", 732, 732),
+                new SelfDeviceController.DeviceStatusRequest("Phone", "ios", 732, 732),
                 request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
-        verify(devices, never()).updateStatus(any(), any(), eq(732L), eq(732L), any());
+        verify(devices, never()).updateStatus(any(), any(), any(), eq(732L), eq(732L), any());
     }
 
     @Test
@@ -58,10 +58,10 @@ class SelfDeviceControllerTest {
         when(authenticator.authenticate(request)).thenReturn(AuthenticationResult.denied());
 
         var response = controller.updateCurrentDeviceStatus(
-                new SelfDeviceController.DeviceStatusRequest("android", 40, 100),
+                new SelfDeviceController.DeviceStatusRequest("Pixel 2", "android", 40, 100),
                 request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(401);
-        verify(devices, never()).updateStatus(any(), any(), anyLong(), anyLong(), any());
+        verify(devices, never()).updateStatus(any(), any(), any(), anyLong(), anyLong(), any());
     }
 }
