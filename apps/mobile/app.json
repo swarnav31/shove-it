@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Shove",
+    "slug": "shove",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.shove.mobile",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Shove needs access to the photos you choose to send to your home server."
+      }
+    },
+    "android": {
+      "package": "dev.shove.mobile"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

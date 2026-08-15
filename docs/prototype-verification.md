@@ -1,0 +1,109 @@
+# Prototype verification
+
+**Last consolidated:** 2026-08-15
+
+## Real-hardware environment
+
+- Client: iPhone 13 mini
+- Client runtime: Expo Go, Expo SDK 54
+- Network: private home Wi-Fi, phone and laptop on `192.168.1.0/24`
+- Server: Java 21, Spring Boot 4.1.0 on Windows
+- Metadata: SQLite
+- Media destination: Windows filesystem beneath the configured storage root
+- External destination tested: Samsung T7 Shield, exFAT, mounted as `E:`
+
+## Proven journeys
+
+### Connectivity
+
+- iPhone Safari reached `http://<laptop-ip>:8787/healthz`.
+- The response reported `status=ok` and `storageWritable=true`.
+- The physical Wi-Fi address was used; WSL and VPN adapter addresses were excluded.
+- Narrow Java `8787` and Expo `8081` firewall rules allowed only the home subnet.
+
+### Pairing and authentication
+
+- A Windows-created six-digit code paired the iPhone.
+- Successful short-code claim was exercised; two-minute expiry and single-use removal are implemented in the pairing service.
+- The iPhone retained its token across a Java restart.
+- An authenticated self-unpair updated last-seen and revocation timestamps.
+- Re-pairing created a distinct active device ID.
+- The revoked device remained available for historical attribution.
+
+### Upload and audit
+
+- Multiple HEIC and PNG originals were uploaded from the actual iPhone.
+- The phone displayed byte progress and `Verified on Windows`.
+- Audit rows referenced the correct pre- and post-re-pair device IDs.
+- Audit rows survived Java restarts.
+- Every audited file existed at its recorded path.
+- Every audited byte count matched the Windows file length.
+- Every audited SHA-256 matched an independent Windows `Get-FileHash` result.
+- No `.part` files remained after the successful transfers.
+
+### External SSD destination
+
+- Java exposed the laptop root and `E:\Shove` as separate server-approved destination IDs.
+- The iPhone displayed both choices and completed verified uploads to each one.
+- Health reported the external root writable and existing audit history remained available.
+- A real iPhone JPEG was written to `E:\Shove\Shove Library\2026\08`.
+- The 1,426,135-byte Windows file matched the SQLite byte count.
+- Independent Windows SHA-256 matched the persisted audit hash.
+- exFAT completed the required atomic move for this transfer.
+- The old default storage root did not receive a second copy.
+- The SSD incoming directory contained zero `.part` files afterward.
+- With no transfer active, physically disconnecting the T7 was reflected in the iPhone UI within the two-second refresh window.
+- The disconnected T7 became unavailable and the selection safely fell back to the Windows destination without restarting Java or Expo.
+
+One verified post-re-pair example:
+
+```text
+original filename: IMG_1180.png
+bytes:             873295
+state:             verified
+sha256:            c1cddb4349f19b39c564432f0140e2debda26d15662ef0b41a5c6b1a5f5e0eb0
+```
+
+## Automated checks
+
+Java tests cover:
+
+- Spring application context and database schema initialization;
+- configured storage layout and writability;
+- streaming, hashing, and atomic promotion;
+- exact SHA-256 and stored bytes;
+- partial cleanup and persistent failed audit state on a length mismatch.
+
+The mobile strict TypeScript check passes. The foreground engine and UI were additionally exercised through the real Expo Go client.
+
+## Known prototype limitations
+
+Not yet proven:
+
+- 2–5 GB video transfer;
+- behavior when Wi-Fi disappears mid-request;
+- Java termination or Windows restart mid-request;
+- external SSD removal during a write or promotion (normal external-SSD completion is proven);
+- physical SSD reconnection and automatic reappearance after a clean disconnect;
+- retry, idempotency, duplicate suppression, or resumable offsets;
+- a multi-item durable queue;
+- native iOS background execution;
+- independent source-side hash comparison;
+- TLS and authenticated server identity;
+- packaged Windows/iOS installation.
+- recovery of audit rows left in `receiving` after abrupt termination;
+- the edge case where file promotion succeeds but the subsequent SQLite verified-state update fails.
+
+The development profile also exposes `/api/v1/dev/uploads`, which intentionally bypasses pairing. It must not exist in a production deployment.
+
+## Next validation order
+
+This is a test order, not a feature commitment:
+
+1. Medium video with the current whole-file protocol.
+2. 2–5 GB video while observing memory, disk, time, and iOS behavior.
+3. Interrupt Wi-Fi and confirm failed state/partial cleanup.
+4. Terminate Java and confirm restart behavior.
+5. Remove or fill the destination and observe failure semantics.
+6. Use the observed failures to specify retry, idempotency, and resume behavior.
+7. Replace the foreground adapter with native iOS background transfer behind `TransferEngine`.

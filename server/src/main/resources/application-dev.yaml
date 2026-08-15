@@ -1,0 +1,3 @@
+shove:
+  authentication-mode: development-allow-all
+

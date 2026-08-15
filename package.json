@@ -1,0 +1,12 @@
+{
+  "name": "shove-it",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "mobile": "pnpm --dir apps/mobile start",
+    "mobile:lan": "pnpm --dir apps/mobile start:lan",
+    "mobile:typecheck": "pnpm --dir apps/mobile typecheck"
+  },
+  "packageManager": "pnpm@10.14.0"
+}
+
