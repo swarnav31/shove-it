@@ -434,3 +434,7 @@ The first milestone succeeds when a full-resolution photo and a large video sele
 - Remote access design
 - Windows/macOS packaging and updates
 - Open-source boundary and commercial feature model
+
+## License
+
+Copyright 2026 Swarnava Choudhury. Licensed under the [Apache License 2.0](LICENSE).
