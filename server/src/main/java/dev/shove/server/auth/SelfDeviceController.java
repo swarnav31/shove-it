@@ -62,6 +62,7 @@ public final class SelfDeviceController {
 
         boolean updated = devices.updateStatus(
                 authentication.deviceId(),
+                normalizedDeviceName(status.deviceName()),
                 platform,
                 status.availableBytes(),
                 status.totalBytes(),
@@ -79,6 +80,17 @@ public final class SelfDeviceController {
         return normalized.length() <= 32 && normalized.matches("[a-z0-9._-]+") ? normalized : null;
     }
 
-    record DeviceStatusRequest(String platform, long availableBytes, long totalBytes) {
+    private static String normalizedDeviceName(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replaceAll("\\p{Cntrl}", "").trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        return normalized.substring(0, Math.min(normalized.length(), 80));
+    }
+
+    record DeviceStatusRequest(String deviceName, String platform, long availableBytes, long totalBytes) {
     }
 }

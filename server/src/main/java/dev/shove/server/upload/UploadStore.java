@@ -34,11 +34,23 @@ public class UploadStore {
                     started_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     verified_at TEXT,
+                    receive_hash_ms INTEGER,
+                    external_copy_ms INTEGER,
+                    promote_ms INTEGER,
+                    audit_ms INTEGER,
+                    total_ms INTEGER,
+                    failure_phase TEXT,
                     failure_message TEXT
                 )
                 """);
         ensureColumn("destination_id", "TEXT NOT NULL DEFAULT 'legacy'");
         ensureColumn("storage_root", "TEXT");
+        ensureColumn("receive_hash_ms", "INTEGER");
+        ensureColumn("external_copy_ms", "INTEGER");
+        ensureColumn("promote_ms", "INTEGER");
+        ensureColumn("audit_ms", "INTEGER");
+        ensureColumn("total_ms", "INTEGER");
+        ensureColumn("failure_phase", "TEXT");
         jdbc.execute("CREATE INDEX IF NOT EXISTS uploads_device_started_idx ON uploads(device_id, started_at DESC)");
     }
 
@@ -72,11 +84,14 @@ public class UploadStore {
             String storedRelativePath,
             long bytes,
             String sha256,
+            UploadPhaseTimings timings,
             Instant verifiedAt) {
         jdbc.update("""
                 UPDATE uploads
                 SET stored_relative_path = ?, bytes_received = ?, sha256 = ?,
-                    state = 'verified', verified_at = ?, updated_at = ?, failure_message = NULL
+                    state = 'verified', verified_at = ?, updated_at = ?,
+                    receive_hash_ms = ?, external_copy_ms = ?, promote_ms = ?,
+                    failure_phase = NULL, failure_message = NULL
                 WHERE upload_id = ?
                 """,
                 storedRelativePath,
@@ -84,17 +99,71 @@ public class UploadStore {
                 sha256,
                 verifiedAt.toString(),
                 verifiedAt.toString(),
+                timings.receiveHashMs(),
+                timings.externalCopyMs(),
+                timings.promoteMs(),
                 uploadId);
     }
 
-    public void markFailed(String uploadId, String failureMessage, Instant failedAt) {
+    public void markPhase(
+            String uploadId,
+            String state,
+            long bytes,
+            String sha256,
+            UploadPhaseTimings timings,
+            Instant updatedAt) {
         jdbc.update("""
                 UPDATE uploads
-                SET state = 'failed', updated_at = ?, failure_message = ?
+                SET state = ?, bytes_received = ?, sha256 = ?, updated_at = ?,
+                    receive_hash_ms = ?, external_copy_ms = ?, promote_ms = ?
+                WHERE upload_id = ?
+                """,
+                state,
+                bytes,
+                sha256,
+                updatedAt.toString(),
+                timings.receiveHashMs(),
+                timings.externalCopyMs(),
+                timings.promoteMs(),
+                uploadId);
+    }
+
+    public void updateFinalTimings(String uploadId, UploadPhaseTimings timings) {
+        jdbc.update("""
+                UPDATE uploads
+                SET receive_hash_ms = ?, external_copy_ms = ?, promote_ms = ?,
+                    audit_ms = ?, total_ms = ?, failure_phase = ?
+                WHERE upload_id = ?
+                """,
+                timings.receiveHashMs(),
+                timings.externalCopyMs(),
+                timings.promoteMs(),
+                timings.auditMs(),
+                timings.totalMs(),
+                timings.failurePhase(),
+                uploadId);
+    }
+
+    public void markFailed(
+            String uploadId,
+            String failureMessage,
+            UploadPhaseTimings timings,
+            Instant failedAt) {
+        jdbc.update("""
+                UPDATE uploads
+                SET state = 'failed', updated_at = ?, failure_message = ?,
+                    receive_hash_ms = ?, external_copy_ms = ?, promote_ms = ?,
+                    audit_ms = ?, total_ms = ?, failure_phase = ?
                 WHERE upload_id = ?
                 """,
                 failedAt.toString(),
                 truncate(failureMessage, 500),
+                timings.receiveHashMs(),
+                timings.externalCopyMs(),
+                timings.promoteMs(),
+                timings.auditMs(),
+                timings.totalMs(),
+                timings.failurePhase(),
                 uploadId);
     }
 
@@ -140,6 +209,13 @@ public class UploadStore {
                 Instant.parse(resultSet.getString("started_at")),
                 Instant.parse(resultSet.getString("updated_at")),
                 verifiedAt,
+                new UploadPhaseTimings(
+                        nullableLong(resultSet, "receive_hash_ms"),
+                        nullableLong(resultSet, "external_copy_ms"),
+                        nullableLong(resultSet, "promote_ms"),
+                        nullableLong(resultSet, "audit_ms"),
+                        nullableLong(resultSet, "total_ms"),
+                        resultSet.getString("failure_phase")),
                 resultSet.getString("failure_message"));
     }
 
@@ -154,6 +230,11 @@ public class UploadStore {
 
     private static Instant nullableInstant(String value) {
         return value == null ? null : Instant.parse(value);
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
+        long value = resultSet.getLong(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static String truncate(String value, int maximumLength) {

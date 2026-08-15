@@ -17,6 +17,7 @@ public record UploadReceipt(
         Instant startedAt,
         Instant updatedAt,
         Instant verifiedAt,
+        UploadPhaseTimings timings,
         String failureMessage
 ) {
 }

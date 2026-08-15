@@ -25,6 +25,9 @@ These records capture the decisions behind the prototype. Accepted records descr
 | [0019](0019-gui-first-run-before-the-server.md) | Accepted for source preview | Use a Windows first-run bootstrap before handing off to the embedded control panel |
 | [0020](0020-private-customer-runtime.md) | Accepted for customer packaging | Ship and repair a small private runtime without touching developer tools |
 | [0021](0021-authenticated-foreground-device-status.md) | Accepted | Treat phone storage and presence as authenticated foreground telemetry |
+| [0022](0022-persisted-phase-timings-before-otel.md) | Accepted | Persist upload phase timings before adding an OpenTelemetry runtime |
+| [0023](0023-two-tier-performance-observability.md) | Accepted | Keep customer performance built in and move deep telemetry to the Pro distribution |
+| [0024](0024-core-pro-no-op-extension-boundary.md) | Accepted | Every Pro capability enters through a Core-owned contract with a fail-safe no-op default |
 
 ## ADR format
 

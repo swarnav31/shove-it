@@ -15,7 +15,9 @@ param(
     [switch]$SkipInstall,
     [switch]$ConfigureFirewall,
     [switch]$NoOpen,
-    [switch]$Remove
+    [switch]$Remove,
+    [string]$ServerJarPath,
+    [string]$JavaAgentPath
 )
 
 Set-StrictMode -Version Latest
@@ -158,9 +160,9 @@ function Read-YesNo([string]$Prompt, [bool]$DefaultValue) {
 function Invoke-MavenPackage {
     $maven = Get-RequiredCommand "mvn.cmd" "Install Maven 3.6.3 or newer."
     Write-Host "Packaging the Java server..." -ForegroundColor Cyan
-    Push-Location $ServerRoot
+    Push-Location $RepositoryRoot
     try {
-        & $maven "-DskipTests" "package"
+        & $maven "-pl" "server" "-am" "-DskipTests" "package"
         if ($LASTEXITCODE -ne 0) { throw "The Java server build failed with exit code $LASTEXITCODE." }
     } finally {
         Pop-Location
@@ -168,8 +170,7 @@ function Invoke-MavenPackage {
 }
 
 function Get-ServerJar {
-    $jar = Get-ChildItem -LiteralPath (Join-Path $ServerRoot "target") -Filter "shove-it-server-*.jar" -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -notlike "*.original" } |
+    $jar = Get-ChildItem -LiteralPath (Join-Path $ServerRoot "target") -Filter "shove-it-server-*-exec.jar" -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
     if ($null -eq $jar) { return $null }
@@ -179,11 +180,16 @@ function Get-ServerJar {
 function Test-ServerBuildRequired {
     $jar = Get-ServerJar
     if ($null -eq $jar) { return $true }
-    $newestSource = Get-ChildItem -LiteralPath (Join-Path $ServerRoot "src") -Recurse -File |
+    $buildInputs = @(
+        (Join-Path $RepositoryRoot "pom.xml"),
+        (Join-Path $RepositoryRoot "core\pom.xml"),
+        (Join-Path $ServerRoot "pom.xml")
+    )
+    $buildInputs += Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot "core\src") -Recurse -File
+    $buildInputs += Get-ChildItem -LiteralPath (Join-Path $ServerRoot "src") -Recurse -File
+    $newestInput = $buildInputs |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
-    $pom = Get-Item -LiteralPath (Join-Path $ServerRoot "pom.xml")
-    $newestInput = if ($newestSource.LastWriteTimeUtc -gt $pom.LastWriteTimeUtc) { $newestSource } else { $pom }
     return $newestInput.LastWriteTimeUtc -gt $jar.LastWriteTimeUtc
 }
 
@@ -506,7 +512,7 @@ function Invoke-Setup {
     Write-Host "Setup complete. Start Shove with: .\shove.cmd start" -ForegroundColor Green
 }
 
-function Invoke-Start {
+function Invoke-Start([string]$JarOverride = "", [string]$AgentPath = "") {
     $config = Read-Config
     Assert-Prerequisites ([bool]$config.startMobile)
     Repair-DuplicateProcessEnvironment
@@ -515,6 +521,9 @@ function Invoke-Start {
     if (Test-Path -LiteralPath $RuntimePath) {
         $oldRuntime = Get-Content -LiteralPath $RuntimePath -Raw | ConvertFrom-Json
         if ((Test-RecordedProcess $oldRuntime.server) -or (Test-RecordedProcess $oldRuntime.mobile)) {
+            if ($JarOverride -or $AgentPath) {
+                throw "Shove is already running in another mode. Stop it before starting an alternate distribution."
+            }
             Write-Host "Shove is already running."
             Invoke-Status
             Open-ControlPanel ([int]$config.serverPort)
@@ -530,8 +539,8 @@ function Invoke-Start {
         throw "Port 8081 is already in use. Stop the other Metro process or configure server-only mode."
     }
 
-    if (Test-ServerBuildRequired) { Invoke-MavenPackage }
-    $jar = Get-ServerJar
+    if (-not $JarOverride -and (Test-ServerBuildRequired)) { Invoke-MavenPackage }
+    $jar = if ($JarOverride) { Get-Item -LiteralPath $JarOverride } else { Get-ServerJar }
     if ($null -eq $jar) { throw "The packaged Java server was not found after the build." }
 
     Write-Heading "STARTING SHOVE"
@@ -553,8 +562,13 @@ function Invoke-Start {
     }
 
     try {
+        $javaArguments = if ($AgentPath) {
+            "-javaagent:`"$AgentPath`" -jar `"$($jar.FullName)`" --spring.profiles.active=dev"
+        } else {
+            "-jar `"$($jar.FullName)`" --spring.profiles.active=dev"
+        }
         $serverProcess = Start-Process -FilePath $java `
-            -ArgumentList "-jar `"$($jar.FullName)`" --spring.profiles.active=dev" `
+            -ArgumentList $javaArguments `
             -WorkingDirectory $ServerRoot `
             -RedirectStandardOutput $serverOut `
             -RedirectStandardError $serverErr `
@@ -724,7 +738,7 @@ Shove developer launcher
   .\shove.cmd firewall  Ask for UAC permission and configure home-subnet rules
   .\shove.cmd firewall -Remove
                         Remove only the Shove-managed firewall rules
-  .\shove.cmd stop      Stop only the Java and Metro processes started by this launcher
+  .\shove.cmd stop      Stop Shove
 
 Useful setup options:
 
@@ -746,7 +760,7 @@ Firewall changes require an explicit setup choice and a Windows UAC approval.
 try {
     switch ($Command) {
         "setup" { Invoke-Setup }
-        "start" { Invoke-Start }
+        "start" { Invoke-Start $ServerJarPath $JavaAgentPath }
         "status" { Invoke-Status }
         "pair" { Invoke-Pair }
         "firewall" { Invoke-Firewall ([bool]$Remove) }
