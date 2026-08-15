@@ -22,6 +22,20 @@ export type StorageDestination = {
 
 const REQUEST_TIMEOUT_MS = 5_000;
 
+export class ServerRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ServerRequestError';
+  }
+}
+
+export function isUnauthorized(error: unknown): error is ServerRequestError {
+  return error instanceof ServerRequestError && error.status === 401;
+}
+
 export class ServerClient {
   async getServerInfo(rawBaseUrl: string): Promise<ServerInfo> {
     const baseUrl = normalizeBaseUrl(rawBaseUrl);
@@ -30,7 +44,7 @@ export class ServerClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Server returned HTTP ${response.status}`);
+      throw new ServerRequestError(`Server returned HTTP ${response.status}`, response.status);
     }
 
     return (await response.json()) as ServerInfo;
@@ -45,7 +59,10 @@ export class ServerClient {
     });
 
     if (!response.ok) {
-      throw new Error(response.status === 401 ? 'Pairing code is invalid or expired.' : `Pairing failed (HTTP ${response.status}).`);
+      throw new ServerRequestError(
+        response.status === 401 ? 'Pairing code is invalid or expired.' : `Pairing failed (HTTP ${response.status}).`,
+        response.status,
+      );
     }
 
     return (await response.json()) as PairedDevice;
@@ -59,7 +76,10 @@ export class ServerClient {
     });
 
     if (!response.ok) {
-      throw new Error(response.status === 401 ? 'This pairing is no longer valid.' : `Unpair failed (HTTP ${response.status}).`);
+      throw new ServerRequestError(
+        response.status === 401 ? 'This pairing is no longer valid.' : `Unpair failed (HTTP ${response.status}).`,
+        response.status,
+      );
     }
   }
 
@@ -70,7 +90,10 @@ export class ServerClient {
     });
 
     if (!response.ok) {
-      throw new Error(response.status === 401 ? 'Pair again to view storage destinations.' : `Storage check failed (HTTP ${response.status}).`);
+      throw new ServerRequestError(
+        response.status === 401 ? 'Pair again to view storage destinations.' : `Storage check failed (HTTP ${response.status}).`,
+        response.status,
+      );
     }
 
     return (await response.json()) as StorageDestination[];

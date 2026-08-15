@@ -1,6 +1,6 @@
 # ADR 0012: Prefer an embedded Windows administration surface
 
-- **Status:** Proposed
+- **Status:** Accepted and implemented
 - **Date:** 2026-08-15
 
 ## Context
@@ -9,9 +9,9 @@ The prototype now has multiple Windows owner operations: health, storage inspect
 
 Adding Electron, another React application, or a separate web server would create a new build/runtime/distribution problem before transfer reliability is proven.
 
-## Proposed decision
+## Decision
 
-When an administration UI is implemented, serve a small loopback-only page from Spring Boot itself, likely at `/admin`.
+Serve a small loopback-only page from Spring Boot itself at `/admin`.
 
 It should consolidate existing capabilities rather than introduce new transfer features:
 
@@ -22,7 +22,18 @@ It should consolidate existing capabilities rather than introduce new transfer f
 - upload audit and verification details;
 - access to the Shove Library location.
 
-Use server-rendered HTML/CSS and minimal JavaScript. A later packaged Windows tray application may open this page and manage server lifecycle.
+Use bundled HTML/CSS and minimal framework-free JavaScript. The development launcher opens this page after Java and Metro are healthy. A later packaged Windows shell will own process lifecycle and open the same surface.
+
+The implemented page provides:
+
+- live Java, Expo, LAN, and storage readiness;
+- an Expo Go QR generated locally for the preferred physical Wi-Fi adapter;
+- two-minute pairing-code creation and countdown;
+- paired-device history and revocation;
+- verified upload history and destination attribution;
+- two-second removable-storage refresh.
+
+The page, its data APIs, and QR are rejected when the HTTP peer is not loopback. Mutating owner operations also reject browser requests whose `Origin` is not the same loopback origin; command-line tools without an `Origin` remain supported.
 
 ## Rationale
 
@@ -30,11 +41,10 @@ The Java server already owns the data and loopback APIs. An embedded surface avo
 
 ## Consequences
 
-- This is not implemented in the current repository.
-- `pair.cmd`, PowerShell, and DBeaver remain the prototype tools.
-- Browser-origin, CSRF, local-user, and file-opening behavior must be designed before implementation.
-- The page must not weaken loopback restrictions or expose bearer-token hashes.
-- UI work should follow, not displace, large-file and interruption testing.
+- `pair.cmd`, PowerShell, and DBeaver remain diagnostic fallbacks rather than the main operating surface.
+- Storage configuration, firewall elevation, process lifecycle, and opening a library folder still belong to the Windows packaging layer; the web server must not launch arbitrary local processes in response to a browser request.
+- The page does not expose bearer-token hashes.
+- Browser-origin risk is reduced through loopback enforcement and same-origin checks on mutations. A future multi-user Windows release may require a stronger local-user session boundary.
 
 ## Alternatives considered
 
@@ -44,4 +54,3 @@ The Java server already owns the data and loopback APIs. An embedded surface avo
 - Make the iPhone the administrator for all household devices.
 
 The embedded direction best matches the single-process Java architecture while remaining intentionally deferred.
-

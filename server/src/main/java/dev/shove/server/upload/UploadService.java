@@ -14,10 +14,12 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HexFormat;
-import java.util.Optional;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -29,6 +31,7 @@ public final class UploadService {
 
     private static final int BUFFER_SIZE = 1024 * 1024;
     private static final int MAX_FILENAME_LENGTH = 180;
+    private static final Logger LOGGER = LoggerFactory.getLogger(UploadService.class);
 
     private final StorageDestinationRegistry destinations;
     private final UploadStore uploadStore;
@@ -55,7 +58,13 @@ public final class UploadService {
         StorageLayout storage = destinationConfig.layout();
         String uploadId = UUID.randomUUID().toString();
         String safeFilename = safeFilename(suppliedFilename);
-        Path part = storage.incomingPart(uploadId);
+        boolean stagesLocally = !StorageDestinationRegistry.DEFAULT_DESTINATION_ID.equals(destinationConfig.id());
+        Path destinationPart = storage.incomingPart(uploadId);
+        Path receivePart = stagesLocally
+                ? destinations.resolveAvailable(StorageDestinationRegistry.DEFAULT_DESTINATION_ID)
+                        .layout()
+                        .incomingPart(uploadId + ".external-staging")
+                : destinationPart;
         uploadStore.start(
                 uploadId,
                 deviceId,
@@ -67,29 +76,35 @@ public final class UploadService {
 
         DigestWriteResult result;
         try {
-            result = writeAndHash(input, part);
+            result = writeAndHash(input, receivePart);
             if (expectedLength >= 0 && result.bytes() != expectedLength) {
                 throw new IOException(
                         "Upload length mismatch: received %d bytes, expected %d"
                                 .formatted(result.bytes(), expectedLength));
             }
 
+            if (stagesLocally) {
+                copyAndForce(receivePart, destinationPart);
+            }
+
             LocalDate today = LocalDate.now(clock);
             Path destinationDirectory = storage.libraryDirectory(today);
             Path destination = destinationDirectory.resolve(uploadId + "_" + safeFilename);
-            promoteAtomically(part, destination);
+            promoteAtomically(destinationPart, destination);
 
             String storedRelativePath = storage.root()
                     .relativize(destination)
                     .toString()
                     .replace('\\', '/');
             uploadStore.markVerified(uploadId, storedRelativePath, result.bytes(), result.sha256(), clock.instant());
+            if (stagesLocally) {
+                deleteStagingBestEffort(receivePart, uploadId);
+            }
             return uploadStore.findById(uploadId).orElseThrow();
         } catch (IOException | RuntimeException exception) {
-            try {
-                Files.deleteIfExists(part);
-            } catch (IOException cleanupException) {
-                exception.addSuppressed(cleanupException);
+            deleteAfterFailure(destinationPart, exception);
+            if (!receivePart.equals(destinationPart)) {
+                deleteAfterFailure(receivePart, exception);
             }
             try {
                 uploadStore.markFailed(uploadId, exception.getMessage(), clock.instant());
@@ -130,6 +145,40 @@ public final class UploadService {
         }
 
         return new DigestWriteResult(bytesWritten, HexFormat.of().formatHex(digest.digest()));
+    }
+
+    private void copyAndForce(Path source, Path destination) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
+        try (FileChannel sourceChannel = FileChannel.open(source, StandardOpenOption.READ);
+             FileChannel destinationChannel = FileChannel.open(
+                     destination,
+                     StandardOpenOption.CREATE_NEW,
+                     StandardOpenOption.WRITE)) {
+            while (sourceChannel.read(buffer) != -1) {
+                buffer.flip();
+                while (buffer.hasRemaining()) {
+                    destinationChannel.write(buffer);
+                }
+                buffer.clear();
+            }
+            destinationChannel.force(true);
+        }
+    }
+
+    private void deleteAfterFailure(Path path, Exception originalException) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException cleanupException) {
+            originalException.addSuppressed(cleanupException);
+        }
+    }
+
+    private void deleteStagingBestEffort(Path staging, String uploadId) {
+        try {
+            Files.deleteIfExists(staging);
+        } catch (IOException exception) {
+            LOGGER.warn("Verified upload {} left local staging file {}", uploadId, staging, exception);
+        }
     }
 
     private static void promoteAtomically(Path part, Path destination) throws IOException {

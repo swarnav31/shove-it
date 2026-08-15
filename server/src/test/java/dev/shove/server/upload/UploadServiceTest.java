@@ -72,9 +72,56 @@ class UploadServiceTest {
                 });
     }
 
+    @Test
+    void stagesExternalUploadsLocallyBeforeDurablePromotion() throws IOException {
+        byte[] source = "an original headed to an external ssd".getBytes();
+        Path local = temporaryDirectory.resolve("local");
+        Path external = temporaryDirectory.resolve("external");
+        Files.createDirectories(external);
+        ServiceFixture fixture = service(local, external);
+
+        UploadReceipt receipt = fixture.service().receive(
+                "test-device", "external", "IMG_0002.HEIC", source.length, new ByteArrayInputStream(source));
+
+        assertThat(receipt.verified()).isTrue();
+        assertThat(receipt.destinationId()).isEqualTo("external");
+        assertThat(receipt.storageRoot()).isEqualTo(external.toAbsolutePath().toString());
+        assertThat(Files.readAllBytes(external.resolve(receipt.storedRelativePath())))
+                .isEqualTo(source);
+        assertThat(local.resolve(".shove/incoming")).isEmptyDirectory();
+        assertThat(external.resolve(".shove/incoming")).isEmptyDirectory();
+    }
+
+    @Test
+    void cleansLocalStagingWhenAnExternalUploadLengthDoesNotMatch() throws IOException {
+        Path local = temporaryDirectory.resolve("local");
+        Path external = temporaryDirectory.resolve("external");
+        Files.createDirectories(external);
+        ServiceFixture fixture = service(local, external);
+
+        assertThatThrownBy(() -> fixture.service().receive(
+                "test-device", "external", "video.mov", 100, new ByteArrayInputStream(new byte[] {1, 2, 3})))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("length mismatch");
+
+        assertThat(local.resolve(".shove/incoming")).isEmptyDirectory();
+        assertThat(external.resolve(".shove/incoming")).isEmptyDirectory();
+        assertThat(fixture.store().listForDevice("test-device"))
+                .singleElement()
+                .satisfies(receipt -> assertThat(receipt.state()).isEqualTo("failed"));
+    }
+
     private ServiceFixture service() {
+        return service(temporaryDirectory, null);
+    }
+
+    private ServiceFixture service(Path local, Path external) {
         StorageDestinationRegistry destinations = new StorageDestinationRegistry(
-                new ShoveProperties("Test", temporaryDirectory, "", "External SSD"));
+                new ShoveProperties(
+                        "Test",
+                        local,
+                        external == null ? "" : external.toString(),
+                        "External SSD"));
         var dataSource = new DriverManagerDataSource("jdbc:sqlite:" + temporaryDirectory.resolve("audit.db"));
         UploadStore store = new UploadStore(new JdbcTemplate(dataSource));
         return new ServiceFixture(new UploadService(destinations, store, FIXED_CLOCK), store);

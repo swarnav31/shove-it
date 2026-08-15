@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shove control panel</title>
+  <link rel="stylesheet" href="/admin/shove.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/admin/" aria-label="Shove control panel">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span><strong>Shove</strong><small>Windows control panel</small></span>
+      </a>
+      <div class="topbar-actions">
+        <span id="overall-status" class="status-pill waiting"><span></span>Checking</span>
+        <button id="refresh-button" class="button quiet" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">YOUR PRIVATE PHOTO PIPE</p>
+          <h1 id="hero-title">Getting Shove ready…</h1>
+          <p id="hero-copy" class="hero-copy">Checking your iPhone connection and storage.</p>
+        </div>
+        <div class="hero-signal" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+      </section>
+
+      <div id="error-banner" class="error-banner" role="alert" hidden></div>
+
+      <section class="steps" aria-label="Connect an iPhone">
+        <article class="card connect-card">
+          <div class="card-heading">
+            <span class="step-number">1</span>
+            <div><p class="kicker">OPEN ON IPHONE</p><h2>Scan with Expo Go</h2></div>
+          </div>
+          <div class="connect-layout">
+            <div id="qr-wrap" class="qr-wrap loading">
+              <img id="expo-qr" alt="QR code to open Shove in Expo Go" hidden>
+              <span id="qr-placeholder">Starting Expo…</span>
+            </div>
+            <div class="connect-copy">
+              <ol>
+                <li>Install and open <strong>Expo Go</strong>.</li>
+                <li>Scan this QR code.</li>
+                <li>Keep Expo Go open while sending.</li>
+              </ol>
+              <button id="copy-expo-url" class="text-button" type="button" disabled>Copy project address</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="card pairing-card">
+          <div class="card-heading">
+            <span class="step-number">2</span>
+            <div><p class="kicker">PAIR SECURELY</p><h2>Make a one-time code</h2></div>
+          </div>
+          <p class="muted">Enter this code on the phone. It works once and expires after two minutes.</p>
+          <div id="pairing-code-panel" class="pairing-code-panel empty">
+            <span id="pairing-code">— — — &nbsp; — — —</span>
+            <small id="pairing-countdown">No active code</small>
+          </div>
+          <button id="pair-button" class="button primary wide" type="button">Create pairing code</button>
+        </article>
+      </section>
+
+      <section class="card storage-card">
+        <div class="section-heading">
+          <div><p class="kicker">DESTINATIONS</p><h2>Your storage</h2></div>
+          <span class="live-note"><i></i>Updates automatically</span>
+        </div>
+        <div id="storage-list" class="storage-list" aria-live="polite"></div>
+      </section>
+
+      <div class="data-grid">
+        <section class="card">
+          <div class="section-heading">
+            <div><p class="kicker">ACCESS</p><h2>Paired devices</h2></div>
+            <span id="device-count" class="count-badge">0</span>
+          </div>
+          <div id="device-list" class="record-list empty-state">No phones paired yet.</div>
+        </section>
+
+        <section class="card">
+          <div class="section-heading">
+            <div><p class="kicker">ACTIVITY</p><h2>Recent transfers</h2></div>
+            <span id="upload-count" class="count-badge">0</span>
+          </div>
+          <div id="upload-list" class="record-list empty-state">Your verified transfers will appear here.</div>
+        </section>
+      </div>
+
+      <footer>
+        <span>Shove runs locally on this Windows PC.</span>
+        <span id="server-address">Server address unavailable</span>
+      </footer>
+    </main>
+  </div>
+  <script src="/admin/shove.js" defer></script>
+</body>
+</html>

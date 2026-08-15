@@ -41,4 +41,4 @@ All were rejected because they either weaken the host boundary, increase Windows
 
 ## Verification note
 
-On the real iPhone 13 mini and Samsung T7 Shield, both approved destinations appeared and accepted verified uploads. Disconnecting the idle T7 made it unavailable within the two-second UI refresh window and automatically moved selection to the local destination without a Java or Expo restart. Reconnection is the remaining half of the physical presence test.
+On the real iPhone 13 mini and Samsung T7 Shield, both approved destinations appeared and accepted verified uploads. Disconnecting the idle T7 made it unavailable within the two-second UI refresh window and automatically moved selection to the local destination without a Java or Expo restart. Reconnecting it made the destination reappear without restarting either process.
