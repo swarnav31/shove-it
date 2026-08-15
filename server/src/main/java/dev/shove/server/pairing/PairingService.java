@@ -74,8 +74,8 @@ public final class PairingService {
     }
 
     private static String normalizeName(String name) {
-        String normalized = name == null ? "iPhone" : name.trim();
-        if (normalized.isEmpty()) normalized = "iPhone";
+        String normalized = name == null ? "Mobile device" : name.trim();
+        if (normalized.isEmpty()) normalized = "Mobile device";
         return normalized.substring(0, Math.min(normalized.length(), 80));
     }
 

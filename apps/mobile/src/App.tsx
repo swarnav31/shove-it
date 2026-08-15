@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -10,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 
@@ -28,6 +30,11 @@ type ConnectionState =
   | { kind: 'connected'; server: ServerInfo }
   | { kind: 'error'; message: string };
 
+type PhoneStorage = {
+  availableBytes: number;
+  totalBytes: number;
+};
+
 export default function App() {
   const serverClient = useMemo(() => new ServerClient(), []);
   const transferEngine = useMemo(() => createTransferEngine(), []);
@@ -44,6 +51,7 @@ export default function App() {
   const [transfer, setTransfer] = useState<TransferTaskSnapshot | null>(null);
   const [transferDestination, setTransferDestination] = useState<StorageDestination | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [phoneStorage, setPhoneStorage] = useState<PhoneStorage | null>(() => readPhoneStorage());
 
   useEffect(() => {
     void Promise.all([SecureStore.getItemAsync(TOKEN_KEY), SecureStore.getItemAsync(SERVER_KEY)]).then(
@@ -55,6 +63,13 @@ export default function App() {
     const subscription = transferEngine.subscribe(setTransfer);
     return () => subscription.remove();
   }, [transferEngine]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setPhoneStorage(readPhoneStorage());
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -126,7 +141,7 @@ export default function App() {
     setTransferError(null);
     try {
       const normalizedAddress = normalizeBaseUrl(address);
-      const device = await serverClient.pair(normalizedAddress, pairingCode, 'iPhone 13 mini');
+      const device = await serverClient.pair(normalizedAddress, pairingCode, 'Mobile device');
       await SecureStore.setItemAsync(TOKEN_KEY, device.token);
       await SecureStore.setItemAsync(SERVER_KEY, normalizedAddress);
       setAddress(normalizedAddress);
@@ -224,7 +239,19 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.eyebrow}>SHOVE-IT PROTOTYPE</Text>
         <Text style={styles.title}>Shove one original home.</Text>
-        <Text style={styles.subtitle}>iPhone → local Wi-Fi → Windows SSD. Nothing else yet.</Text>
+        <Text style={styles.subtitle}>Phone → local Wi-Fi → Windows storage. Nothing else yet.</Text>
+
+        <View style={styles.phoneStorageStrip}>
+          <View>
+            <Text style={styles.phoneStorageLabel}>THIS PHONE</Text>
+            <Text style={styles.phoneStorageValue}>
+              {phoneStorage ? `${formatBytes(phoneStorage.availableBytes)} free` : 'Storage unavailable'}
+            </Text>
+          </View>
+          {phoneStorage && (
+            <Text style={styles.phoneStorageTotal}>{formatBytes(phoneStorage.totalBytes)} total</Text>
+          )}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.step}>1 · CONNECT</Text>
@@ -249,12 +276,12 @@ export default function App() {
           <Text style={styles.step}>2 · PAIR</Text>
           {token ? (
             <>
-              <Text style={styles.success}>● This iPhone is paired</Text>
+              <Text style={styles.success}>● This phone is paired</Text>
               <ActionButton
                 disabled={unpairing}
                 loading={unpairing}
                 onPress={unpair}
-                text="Unpair this iPhone"
+                text="Unpair this phone"
               />
             </>
           ) : (
@@ -272,7 +299,7 @@ export default function App() {
                 disabled={pairing || pairingCode.length !== 6}
                 loading={pairing}
                 onPress={pair}
-                text="Pair iPhone"
+                text="Pair phone"
               />
             </>
           )}
@@ -387,6 +414,16 @@ function formatBytes(value: number): string {
   return `${(value / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
 }
 
+function readPhoneStorage(): PhoneStorage | null {
+  try {
+    const totalBytes = Paths.totalDiskSpace;
+    const availableBytes = Paths.availableDiskSpace;
+    return totalBytes > 0 && availableBytes >= 0 ? { availableBytes, totalBytes } : null;
+  } catch {
+    return null;
+  }
+}
+
 function destinationSummary(destination: StorageDestination): string {
   return destination.freeBytes === null
     ? destination.path
@@ -419,6 +456,10 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#65e6ad', fontSize: 12, fontWeight: '700', letterSpacing: 1.8 },
   title: { color: '#f4fff9', fontSize: 39, fontWeight: '700', lineHeight: 44, marginTop: 10 },
   subtitle: { color: '#9bb0a7', fontSize: 16, lineHeight: 23, marginBottom: 18, marginTop: 12 },
+  phoneStorageStrip: { alignItems: 'center', backgroundColor: '#0c1b16', borderColor: '#1d3b30', borderRadius: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3, paddingHorizontal: 15, paddingVertical: 12 },
+  phoneStorageLabel: { color: '#789187', fontSize: 10, fontWeight: '700', letterSpacing: 1.1 },
+  phoneStorageValue: { color: '#f4fff9', fontSize: 17, fontWeight: '700', marginTop: 3 },
+  phoneStorageTotal: { color: '#9bb0a7', fontSize: 12 },
   card: { backgroundColor: '#10221b', borderColor: '#1d3b30', borderRadius: 18, borderWidth: 1, marginTop: 14, padding: 17 },
   step: { color: '#a9bdb4', fontSize: 12, fontWeight: '700', letterSpacing: 1.2, marginBottom: 11 },
   input: { backgroundColor: '#091713', borderColor: '#2b4d40', borderRadius: 11, borderWidth: 1, color: '#f4fff9', fontSize: 16, paddingHorizontal: 13, paddingVertical: 12 },
