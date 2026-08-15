@@ -65,11 +65,11 @@ function renderOverview(overview) {
   const availableStorage = overview.destinations?.some((destination) => destination.available);
   const ready = overview.expoReady && overview.serverUrl && availableStorage;
   setOverallStatus(ready ? 'ready' : 'waiting', ready ? 'Ready' : 'Almost ready');
-  elements.heroTitle.textContent = ready ? 'Ready for your iPhone.' : 'One more thing before you connect.';
+  elements.heroTitle.textContent = ready ? 'Ready for your phone.' : 'One more thing before you connect.';
   elements.heroCopy.textContent = !overview.serverUrl
-    ? 'Connect this PC to your home Wi-Fi so your iPhone can reach it.'
+    ? 'Connect this PC to your home Wi-Fi so your phone can reach it.'
     : !overview.expoReady
-      ? 'The private server is ready. Expo is still starting for the iPhone.'
+      ? 'The private server is ready. Expo is still starting for the phone.'
       : !availableStorage
         ? 'Reconnect a configured storage destination to receive originals.'
         : 'Scan, pair, and send an original straight to storage on this PC.';

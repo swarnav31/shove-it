@@ -2,12 +2,12 @@
 
 ## Audience
 
-The first external testers are friends with an iPhone and a Windows laptop. They are product users, not developers. Instructions must not assume knowledge of APIs, Java, Maven, Node.js, pnpm, Expo, Docker, Git, PowerShell, SQLite, ports, or environment variables.
+The first external testers are friends with an iPhone or Android phone and a Windows laptop. They are product users, not developers. Instructions must not assume knowledge of APIs, Java, Maven, Node.js, pnpm, Expo, Docker, Git, PowerShell, SQLite, ports, or environment variables. The pipeline is verified on iPhone; Android remains an invited but unverified alpha path.
 
 ## What a tester receives
 
 1. A signed or clearly identified Shove Windows installer.
-2. A link to install Expo Go from the iPhone App Store.
+2. A link to install Expo Go from the phone's app store.
 3. A short visual guide covering install, storage choice, QR scan, pairing, first upload, and where the file appears.
 
 The source repository is not part of the customer journey.
@@ -20,12 +20,12 @@ Download installer
     -> Launch Shove
     -> Choose Windows folder and optional external SSD
     -> Approve one explained firewall prompt
-    -> See "Ready for iPhone" and pairing code/QR
+    -> See "Ready for your phone" and pairing code/QR
 ```
 
 The package includes private Java and Node/Metro runtimes, the compiled server, and the prepared mobile project. It checks and repairs only its own files. Existing developer tools and environment settings remain untouched; Maven and pnpm are not installed for customers. The local administration surface owns storage configuration, the Expo QR code, pairing, device revocation, upload history, logs, and safe shutdown.
 
-## iPhone experience
+## Phone experience
 
 ```text
 Install Expo Go
@@ -63,6 +63,6 @@ On a Windows laptop without Java, Maven, Node.js, pnpm, Git, Docker, or the sour
 
 ## External prerequisites for publishing
 
-- Expo Go is the only iPhone installation prerequisite for this friend alpha.
+- Expo Go is the only phone installation prerequisite for this friend alpha.
 - A paid Apple Developer account will later be required to replace Expo Go with TestFlight/App Store distribution.
 - Installer signing is desirable before wider distribution; an unsigned private alpha must explain the Windows warning honestly.
