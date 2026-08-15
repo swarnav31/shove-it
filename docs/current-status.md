@@ -60,6 +60,7 @@ The JavaScript refresh loops exist only for visible destination and device-statu
 
 ## Not yet proven
 
+- Multi-select and a visible transfer queue are not implemented. The picker currently omits `allowsMultipleSelection`, consumes only `result.assets[0]`, tracks one transfer in the UI, and disables selection while it runs.
 - Removing the SSD during an active write or promotion.
 - Medium and 2-5 GB video behavior.
 - Wi-Fi loss, Java termination, or Windows restart during a request.
@@ -67,6 +68,18 @@ The JavaScript refresh loops exist only for visible destination and device-statu
 - Native iOS background execution and source-side digest comparison.
 - Physical Android pairing, media selection, upload, storage reporting, and reconnect behavior. The Android Hermes production bundle compiles successfully, but no Android hardware has been tested.
 - TLS/server identity, self-contained packaged installation, Android, or installed shortcut/uninstall integration.
+
+## Next-session checkpoint: multi-select
+
+The next mobile iteration should turn one deliberate selection into a visible batch without changing the reliability boundary:
+
+1. Enable multiple selection in the Expo media picker and retain every returned asset.
+2. Represent the batch as per-file queue entries with queued, running, verifying, verified, and failed states.
+3. Start with sequential foreground uploads in Expo Go so storage and Wi-Fi behavior remain easy to observe.
+4. Snapshot the chosen destination for each queued item and handle a removable destination disappearing before that item starts.
+5. Keep scheduling behind `TransferEngine`; the eventual iOS implementation must use background `URLSession`, not a JavaScript background loop.
+
+The current `ExpoGoTransferEngine` can identify multiple tasks internally, but `App.tsx` exposes only the latest snapshot. Multi-select therefore requires queue UI/state and reconciliation work, not merely adding the picker flag.
 
 ## Current paths and data
 
